@@ -73,6 +73,15 @@ export const baseConfig: Config = {
     marginPt: 36,
     safeMarginPct: 4,
   },
+  // Per-client T&C placement. Clients not listed use "bottom" (NEO/default).
+  tcLayout: {
+    Budget: {
+      mode: "belowLayer",
+      moveLayer: "@logo-left",
+      alignTo: "@logo-right",
+      gap: 24,
+    },
+  },
   brands: [
     {
       id: "telfaz",

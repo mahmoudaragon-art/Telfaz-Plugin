@@ -186,7 +186,8 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     if (!t) return setStatus("T&C text is empty", "err");
     setStatus("Writing T&C …", "busy");
     try {
-      await api.writeTc(t, cfg.tcStyle, selection.lang || "EN", dir);
+      const layout = (selection.client && cfg.tcLayout?.[selection.client]) || undefined;
+      await api.writeTc(t, cfg.tcStyle, selection.lang || "EN", dir, layout);
       setStatus("T&C written", "ok");
     } catch (e: any) {
       setStatus("T&C failed: " + e.message, "err");

@@ -45,6 +45,19 @@ export interface TcStyle {
   safeMarginPct: number;
 }
 
+/**
+ * Per-client T&C placement rule.
+ * - "bottom": write the T&C bottom-aligned inside the safe margin (NEO/default).
+ * - "belowLayer": nudge `moveLayer` up and place the T&C beneath it, bottom-
+ *   aligned to `alignTo`'s bottom (Budget). Layers are matched by name.
+ */
+export interface TcLayoutRule {
+  mode: "bottom" | "belowLayer";
+  moveLayer?: string;
+  alignTo?: string;
+  gap?: number;
+}
+
 export interface About {
   author: string;
   role: string;
@@ -71,6 +84,8 @@ export interface Config {
   tc: Option[];
   tcText: Record<string, Record<string, string>>;
   tcStyle: TcStyle;
+  /** Per-client T&C placement rules (client value → rule). Default is "bottom". */
+  tcLayout: Record<string, TcLayoutRule>;
   brands: Brand[];
   about: About;
   ui: Ui;

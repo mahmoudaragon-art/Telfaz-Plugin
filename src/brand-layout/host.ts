@@ -8,6 +8,7 @@ import type {
   Brand,
   Config,
   TcStyle,
+  TcLayoutRule,
   FolderInfo,
   VerifyResult,
   SizeOption,
@@ -238,14 +239,33 @@ export async function writeTc(
   style: TcStyle,
   lang: string,
   dir: "rtl" | "ltr" = lang === "AR" ? "rtl" : "ltr",
+  layout?: TcLayoutRule,
 ) {
   const font = lang === "AR" ? style.fontAR : style.fontEN;
-  if (HOST === "Photoshop") await writeTcPhotoshop(text, font, style, dir);
+  if (HOST === "Photoshop") await writeTcPhotoshop(text, font, style, dir, layout);
   else if (HOST === "Illustrator") await writeTcIllustrator(text, font, style, dir);
   else throw new Error("Unsupported host: " + HOST);
 }
 
-async function writeTcPhotoshop(text: string, font: string, st: TcStyle, dir: "rtl" | "ltr") {
+/** Find a layer (recursing into groups) by exact name. */
+function findLayerByName(layers: any, name: string): any {
+  for (const ly of layers) {
+    if (ly.name === name) return ly;
+    if (ly.layers && ly.layers.length) {
+      const hit = findLayerByName(ly.layers, name);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+async function writeTcPhotoshop(
+  text: string,
+  font: string,
+  st: TcStyle,
+  dir: "rtl" | "ltr",
+  layout?: TcLayoutRule,
+) {
   const ps = photoshop;
   const c = hexToRgb(st.color);
   await ps.core.executeAsModal(
@@ -284,38 +304,68 @@ async function writeTcPhotoshop(text: string, font: string, st: TcStyle, dir: "r
         { synchronousExecution: true } as any,
       );
 
-      // Position to anchor. Safe margin scales with the artboard: a % of the
-      // shorter side gives the same visual inset on Square / Vertical / FHD.
       const doc = ps.app.activeDocument;
       const layer = doc.activeLayers[0];
       const b = layer.bounds; // left, top, right, bottom (px)
-      const pct = st.safeMarginPct ?? 4;
-      const margin = pct
-        ? Math.round(Math.min(doc.width, doc.height) * (pct / 100))
-        : st.marginPt * ((doc as any).resolution / 72);
-      const lw = b.right - b.left,
-        lh = b.bottom - b.top;
-      let tx: number, ty: number;
-      const anchor = st.anchor;
-      if (anchor.indexOf("bottom") === 0) ty = doc.height - margin - lh - b.top;
-      else ty = margin - b.top;
-      if (anchor.indexOf("left") > -1) tx = margin - b.left;
-      else if (anchor.indexOf("right") > -1) tx = doc.width - margin - lw - b.left;
-      else tx = (doc.width - lw) / 2 - b.left;
-      await ps.action.batchPlay(
-        [
-          {
-            _obj: "move",
-            _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }],
-            to: {
-              _obj: "offset",
-              horizontal: { _unit: "pixelsUnit", _value: tx },
-              vertical: { _unit: "pixelsUnit", _value: ty },
+
+      const moveText = async (tx: number, ty: number) => {
+        await ps.action.batchPlay(
+          [
+            {
+              _obj: "move",
+              _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }],
+              to: {
+                _obj: "offset",
+                horizontal: { _unit: "pixelsUnit", _value: tx },
+                vertical: { _unit: "pixelsUnit", _value: ty },
+              },
             },
-          },
-        ],
-        { synchronousExecution: true } as any,
-      );
+          ],
+          { synchronousExecution: true } as any,
+        );
+      };
+
+      // ── belowLayer (e.g. Budget): nudge a named logo up, drop the T&C under
+      //    it, bottom-aligned to another named logo. Falls back to bottom-anchor
+      //    if the named layers aren't present.
+      let placed = false;
+      if (layout && layout.mode === "belowLayer" && layout.moveLayer && layout.alignTo) {
+        try {
+          const leftL = findLayerByName(doc.layers, layout.moveLayer);
+          const rightL = findLayerByName(doc.layers, layout.alignTo);
+          if (leftL && rightL) {
+            const gap = layout.gap ?? 24;
+            const L = leftL.bounds;
+            const R = rightL.bounds;
+            // align T&C left edge under the left logo, bottom edge to right logo
+            await moveText(L.left - b.left, R.bottom - b.bottom);
+            // re-read the T&C bounds after the move, then lift the left logo above it
+            const t2 = doc.activeLayers[0].bounds;
+            leftL.translate(0, t2.top - gap - L.bottom);
+            placed = true;
+          }
+        } catch (e) {
+          console.warn("belowLayer T&C failed, using bottom anchor", e);
+        }
+      }
+
+      // ── bottom anchor (NEO/default). Safe margin = % of the shorter side.
+      if (!placed) {
+        const pct = st.safeMarginPct ?? 4;
+        const margin = pct
+          ? Math.round(Math.min(doc.width, doc.height) * (pct / 100))
+          : st.marginPt * ((doc as any).resolution / 72);
+        const lw = b.right - b.left,
+          lh = b.bottom - b.top;
+        let tx: number, ty: number;
+        const anchor = st.anchor;
+        if (anchor.indexOf("bottom") === 0) ty = doc.height - margin - lh - b.top;
+        else ty = margin - b.top;
+        if (anchor.indexOf("left") > -1) tx = margin - b.left;
+        else if (anchor.indexOf("right") > -1) tx = doc.width - margin - lw - b.left;
+        else tx = (doc.width - lw) / 2 - b.left;
+        await moveText(tx, ty);
+      }
     },
     { commandName: "Write T&C" },
   );
