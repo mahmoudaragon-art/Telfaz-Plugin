@@ -90,6 +90,31 @@ export const CheckIcon = () => (
   </svg>
 );
 
+export const ArtboardIcon = () => (
+  <svg viewBox="0 0 16 16" width="15" height="15" fill="none">
+    <rect x="3.25" y="3.25" width="9.5" height="9.5" rx="1.2" stroke="white" strokeWidth="1.5" />
+    <path
+      d="M3.25 6.25H1.6M14.4 6.25H12.75M3.25 9.75H1.6M14.4 9.75H12.75M6.25 3.25V1.6M6.25 14.4V12.75M9.75 3.25V1.6M9.75 14.4V12.75"
+      stroke="white"
+      strokeWidth="1.15"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+/* Bi-directional arrow — used by the RTL/LTR toggle. */
+export const DirectionIcon = () => (
+  <svg viewBox="0 0 16 14" width="14" height="12" fill="none">
+    <path
+      d="M2 7h12M2 7l3-3M2 7l3 3M14 7l-3-3M14 7l-3 3"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 /* Tab icons */
 export const TabPlace = () => (
   <svg className="tab-ico" viewBox="0 0 20 20" fill="none" width="18" height="18">

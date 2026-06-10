@@ -6,12 +6,11 @@ import {
   Selection,
   Ui,
   VerifyResult,
+  baseConfig,
   buildBaseName,
-  loadConfig,
-  loadSelection,
+  buildBaseNameForSize,
   mergeOverrides,
-  persistSelection,
-  saveOverrides,
+  parseJSON,
 } from "./config";
 import type { API } from "../../../src/api/api";
 import { LogoMark } from "./Icons";
@@ -23,21 +22,24 @@ import { TabAbout, TabBrands, TabPlace, TabSettings } from "./Icons";
 
 type View = "place" | "brands" | "settings" | "about";
 
+/** "1.0.0" → "V1.0" (major.minor). */
+const formatVersion = (v: string): string => {
+  const [maj = "1", min = "0"] = (v || "").split(".");
+  return `V${maj}.${min}`;
+};
+
 export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
-  const [cfg, setCfg] = useState<Config>(() => loadConfig());
+  const [cfg, setCfg] = useState<Config>(() => mergeOverrides(baseConfig, {}));
   const [hostName, setHostName] = useState<string>("");
+  const [version, setVersion] = useState<string>("");
   const [view, setView] = useState<View>("place");
-  const [selection, setSelection] = useState<Selection>(() => {
-    const s = loadSelection();
-    const init: Selection = {
-      client: s.client ?? null,
-      size: s.size ?? null,
-      lang: s.lang ?? cfg.languages[0]?.value ?? null,
-      tc: s.tc ?? cfg.tc[0]?.value ?? null,
-      brand: s.brand ?? null,
-    };
-    return init;
-  });
+  const [selection, setSelection] = useState<Selection>(() => ({
+    client: null,
+    size: null,
+    lang: baseConfig.languages[0]?.value ?? null,
+    tc: baseConfig.tc[0]?.value ?? null,
+    brand: null,
+  }));
   // The actual UXP folder lives on the host; the webview only tracks whether
   // one is connected and its display path.
   const [connected, setConnected] = useState<boolean>(false);
@@ -62,11 +64,30 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     r.setProperty("--orange-2", themeUi.accent2);
   }, [themeUi.accent, themeUi.accent2]);
 
-  /* ---- read host name + restore connected folder on boot ---- */
+  /* ---- boot: host name + version + hydrate persisted state + folder ---- */
   useEffect(() => {
     (async () => {
       try {
         setHostName(await api.getHostName());
+      } catch {
+        /* ignore */
+      }
+      try {
+        setVersion(formatVersion(await api.getPluginVersion()));
+      } catch {
+        /* ignore */
+      }
+      // Persisted config/selection live in the host kv store (the webview's own
+      // localStorage is unreliable in UXP).
+      try {
+        const ov = parseJSON<Partial<Config>>(await api.kvGet("overrides"), {});
+        if (ov && Object.keys(ov).length) setCfg(mergeOverrides(baseConfig, ov));
+      } catch {
+        /* ignore */
+      }
+      try {
+        const s = parseJSON<Partial<Selection>>(await api.kvGet("selection"), {});
+        if (s && Object.keys(s).length) setSelection((prev) => ({ ...prev, ...s }));
       } catch {
         /* ignore */
       }
@@ -82,13 +103,11 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     })();
   }, []);
 
-  /* ---- selection ---- */
+  /* ---- selection (persist through host, never inside the state updater) ---- */
   const onSelect = (key: keyof Selection, value: string) => {
-    setSelection((prev) => {
-      const next = { ...prev, [key]: value };
-      persistSelection(next);
-      return next;
-    });
+    const next = { ...selection, [key]: value };
+    setSelection(next);
+    api.kvSet("selection", JSON.stringify(next)).catch(() => {});
   };
   const onSelectBrand = (value: string) => onSelect("brand", value);
 
@@ -118,6 +137,38 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     }
   };
 
+  /** Create a new doc per size and place the asset (single or batch). */
+  const handleCreateArtboards = async (sizeValues: string[]) => {
+    if (!connected) return setStatus("Connect the source folder first", "err");
+    if (!selection.client || !selection.lang || !selection.tc)
+      return setStatus("Pick client, language and T&C first", "err");
+    if (!sizeValues.length) return setStatus("Select at least one size", "err");
+
+    let ok = 0;
+    const fails: string[] = [];
+    for (const sv of sizeValues) {
+      const size = cfg.sizes.find((s) => s.value === sv);
+      const base = buildBaseNameForSize(cfg, selection, sv);
+      if (!size || !base) {
+        fails.push(sv);
+        continue;
+      }
+      setStatus(`Creating ${size.label} (${size.w}×${size.h}) …`, "busy");
+      try {
+        await api.createArtboardAndPlace(base, size, cfg);
+        ok++;
+      } catch (e: any) {
+        fails.push(`${sv}: ${e.message}`);
+      }
+    }
+    setStatus(
+      fails.length
+        ? `Created ${ok}, failed: ${fails.join(" · ")}`
+        : `Created ${ok} artboard${ok === 1 ? "" : "s"}`,
+      fails.length ? "err" : "ok",
+    );
+  };
+
   const handleVerify = async () => {
     if (!connected) return setStatus("Connect the folder first", "err");
     setStatus("Scanning folder…", "busy");
@@ -130,12 +181,12 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     }
   };
 
-  const handleWriteTc = async (text: string) => {
+  const handleWriteTc = async (text: string, dir: "rtl" | "ltr") => {
     const t = text.trim();
     if (!t) return setStatus("T&C text is empty", "err");
     setStatus("Writing T&C …", "busy");
     try {
-      await api.writeTc(t, cfg.tcStyle, selection.lang || "EN");
+      await api.writeTc(t, cfg.tcStyle, selection.lang || "EN", dir);
       setStatus("T&C written", "ok");
     } catch (e: any) {
       setStatus("T&C failed: " + e.message, "err");
@@ -168,16 +219,18 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     }
   };
 
-  /* ---- settings save ---- */
+  /* ---- settings save (persist through host) ---- */
   const handleSaveSettings = (next: Config) => {
-    // Persist editable parts as overrides, then re-merge against the base.
-    saveOverrides({
+    const overrides: Partial<Config> = {
       ui: next.ui,
       tcText: next.tcText,
       tcStyle: next.tcStyle,
       brands: next.brands,
       about: next.about,
-    });
+      categories: next.categories,
+      sizes: next.sizes,
+    };
+    api.kvSet("overrides", JSON.stringify(overrides)).catch(() => {});
     setCfg(mergeOverrides(next, {}));
     setLivePreviewUi(null);
   };
@@ -199,7 +252,10 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
           </div>
           {themeUi.logo && <img className="logo-img" src={themeUi.logo} alt="" />}
           <div className="brand-text">
-            <span className="brand-title">Brand Layout</span>
+            <span className="brand-title-row">
+              <span className="brand-title">Brand Layout</span>
+              {version && <span className="brand-ver">{version}</span>}
+            </span>
             <span className="brand-sub">Linked asset manager</span>
           </div>
         </div>
@@ -211,6 +267,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
         {view === "place" && (
           <PlaceView
             cfg={cfg}
+            api={api}
             selection={selection}
             onSelect={onSelect}
             folderPath={folderPath}
@@ -219,6 +276,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
             verify={verify}
             onCloseVerify={() => setVerify(null)}
             onPlace={handlePlace}
+            onCreateArtboards={handleCreateArtboards}
             onWriteTc={handleWriteTc}
           />
         )}

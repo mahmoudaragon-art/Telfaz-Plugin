@@ -4,12 +4,40 @@
    ============================================================ */
 
 import { uxp, photoshop, illustrator } from "../globals";
-import type { Brand, Config, TcStyle, FolderInfo, VerifyResult } from "./types";
+import type {
+  Brand,
+  Config,
+  TcStyle,
+  FolderInfo,
+  VerifyResult,
+  SizeOption,
+} from "./types";
 
 export type { VerifyResult } from "./types";
 
 const fs = uxp.storage.localFileSystem;
 const shell = uxp.shell;
+
+/* ---------------- key/value persistence bridge ----------------
+   The webview's own localStorage is unreliable in UXP (writes can throw),
+   so the webview persists through these. UXP-context localStorage is proven
+   reliable (the folder token already lives here). Never throws. */
+
+export async function kvGet(key: string): Promise<string | null> {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+export async function kvSet(key: string, value: string): Promise<void> {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* ignore — persistence is best-effort */
+  }
+}
 
 export const HOST = uxp.host.name; // "Photoshop" | "Illustrator"
 
@@ -145,16 +173,79 @@ async function placeLinkedIllustrator(entry: any) {
   ];
 }
 
+/* ---------------- create artboard (new doc) + place ---------------- */
+
+/**
+ * Create a brand-new document sized to `size` and place the linked asset into
+ * it. One new file per call (Photoshop → new PSD, Illustrator → new AI doc).
+ * Batch (Multiple) mode calls this once per checked size.
+ */
+export async function createArtboardAndPlace(
+  base: string,
+  size: SizeOption,
+  cfg: Config,
+): Promise<string> {
+  if (!currentFolder) throw new Error("Connect the source folder first");
+  const entry = await resolveAssetEntry(currentFolder, base, cfg);
+  if (!entry) throw new Error("Not found: " + base + ".(ai|psd)");
+  if (HOST === "Photoshop") {
+    await createDocPhotoshop(size, base);
+    await placeLinkedPhotoshop(entry);
+  } else if (HOST === "Illustrator") {
+    await createDocIllustrator(size, base);
+    await placeLinkedIllustrator(entry);
+  } else {
+    throw new Error("Unsupported host: " + HOST);
+  }
+  return entry.name;
+}
+
+async function createDocPhotoshop(size: SizeOption, name: string) {
+  const ps = photoshop;
+  await ps.core.executeAsModal(
+    async () => {
+      await ps.app.documents.add({
+        width: size.w,
+        height: size.h,
+        resolution: 72,
+        name,
+        fill: "white",
+        mode: "RGBColorMode",
+      } as any);
+    },
+    { commandName: "Create Artboard (" + size.label + ")" },
+  );
+}
+
+async function createDocIllustrator(size: SizeOption, name: string) {
+  const ill = illustrator;
+  const app = ill.app;
+  // UXP Illustrator document-creation surface varies between versions; try the
+  // modern API, fall back to adding an artboard on the active document.
+  try {
+    await app.documents.add({ width: size.w, height: size.h, title: name } as any);
+  } catch {
+    if (!app.documents.length) throw new Error("Open a document first");
+    const doc = app.activeDocument;
+    doc.artboards.add([0, 0, size.w, -size.h]);
+  }
+}
+
 /* ---------------- T&C writer ---------------- */
 
-export async function writeTc(text: string, style: TcStyle, lang: string) {
+export async function writeTc(
+  text: string,
+  style: TcStyle,
+  lang: string,
+  dir: "rtl" | "ltr" = lang === "AR" ? "rtl" : "ltr",
+) {
   const font = lang === "AR" ? style.fontAR : style.fontEN;
-  if (HOST === "Photoshop") await writeTcPhotoshop(text, font, style, lang);
-  else if (HOST === "Illustrator") await writeTcIllustrator(text, font, style, lang);
+  if (HOST === "Photoshop") await writeTcPhotoshop(text, font, style, dir);
+  else if (HOST === "Illustrator") await writeTcIllustrator(text, font, style, dir);
   else throw new Error("Unsupported host: " + HOST);
 }
 
-async function writeTcPhotoshop(text: string, font: string, st: TcStyle, lang: string) {
+async function writeTcPhotoshop(text: string, font: string, st: TcStyle, dir: "rtl" | "ltr") {
   const ps = photoshop;
   const c = hexToRgb(st.color);
   await ps.core.executeAsModal(
@@ -184,7 +275,7 @@ async function writeTcPhotoshop(text: string, font: string, st: TcStyle, lang: s
                 _obj: "paragraphStyle",
                 direction: {
                   _enum: "direction",
-                  _value: lang === "AR" ? "dirRightToLeft" : "dirLeftToRight",
+                  _value: dir === "rtl" ? "dirRightToLeft" : "dirLeftToRight",
                 },
               },
             },
@@ -226,7 +317,7 @@ async function writeTcPhotoshop(text: string, font: string, st: TcStyle, lang: s
   );
 }
 
-async function writeTcIllustrator(text: string, font: string, st: TcStyle, _lang: string) {
+async function writeTcIllustrator(text: string, font: string, st: TcStyle, _dir: "rtl" | "ltr") {
   const ill = illustrator;
   const app = ill.app;
   if (!app.documents.length) throw new Error("Open a document first");

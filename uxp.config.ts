@@ -18,7 +18,9 @@ const manifest: UXP_Manifest = {
   name,
   version,
   main: "index.html",
-  manifestVersion: 6,
+  // manifestVersion 5 is the common denominator: Photoshop AND Illustrator
+  // both support it. (v6 is Photoshop-only, which hid the plugin in Illustrator.)
+  manifestVersion: 5,
   host: [
     {
       app: "PS",
@@ -26,7 +28,7 @@ const manifest: UXP_Manifest = {
     },
     {
       app: "AI",
-      minVersion: "18.5",
+      minVersion: "26.0",
     },
           ],
   entrypoints: [

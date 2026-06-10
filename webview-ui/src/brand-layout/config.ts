@@ -1,24 +1,25 @@
 /* ============================================================
-   Brand Layout — configuration model + persistence
-   Ported from the original config.json + override system.
+   Brand Layout — configuration model + (host-backed) persistence
 
    The data *shapes* live in the shared contract (src/brand-layout/types.ts)
-   so the UXP host and this webview agree on what crosses the bridge. This
-   file owns the base config + localStorage persistence (webview side).
+   so the UXP host and this webview agree on what crosses the bridge.
+
+   Persistence no longer touches the webview's own localStorage (unreliable in
+   UXP — writes can throw and blank the panel). Instead the app reads/writes
+   through the host `api` (kvGet/kvSet); this file only owns the base config,
+   the merge logic and small pure helpers.
    ============================================================ */
 
 import type {
   Option,
-  Brand,
-  TcStyle,
-  About,
-  Ui,
+  SizeOption,
   Config,
   Selection,
 } from "../../../src/brand-layout/types";
 
 export type {
   Option,
+  SizeOption,
   Brand,
   TcStyle,
   About,
@@ -34,10 +35,16 @@ export const baseConfig: Config = {
   namePattern: "{client}_{size}_{lang}_{tc}",
   extensions: ["ai", "psd"],
   clients: ["Budget", "Nava", "Nough", "NEO", "SNB"],
+  // Categories are prepared up front; sizes get added per category later.
+  categories: [
+    { label: "General", value: "general" },
+    { label: "Social Media", value: "social" },
+    { label: "Google Ads", value: "google" },
+  ],
   sizes: [
-    { label: "Square", value: "Square" },
-    { label: "Vertical", value: "Vertical" },
-    { label: "FHD", value: "FHD" },
+    { label: "Square", value: "Square", w: 1080, h: 1080, category: "general" },
+    { label: "Vertical", value: "Vertical", w: 1080, h: 1920, category: "general" },
+    { label: "FHD", value: "FHD", w: 1920, h: 1080, category: "general" },
   ],
   languages: [
     { label: "EN", value: "EN" },
@@ -86,7 +93,7 @@ export const baseConfig: Config = {
   },
 };
 
-/* ---------------- deep merge + overrides persistence ---------------- */
+/* ---------------- deep merge + overrides ---------------- */
 
 function deepMerge<T extends Record<string, any>>(target: T, source: any): T {
   for (const k in source) {
@@ -101,30 +108,23 @@ function deepMerge<T extends Record<string, any>>(target: T, source: any): T {
   return target;
 }
 
-export function loadOverrides(): Partial<Config> {
-  try {
-    return JSON.parse(localStorage.getItem("overrides") || "{}");
-  } catch {
-    return {};
-  }
-}
-
-export function saveOverrides(o: Partial<Config>) {
-  localStorage.setItem("overrides", JSON.stringify(o));
-}
-
 export function mergeOverrides(base: Config, ov: Partial<Config>): Config {
   const out: Config = JSON.parse(JSON.stringify(base));
   deepMerge(out, ov);
   return out;
 }
 
-/** Effective config = base + saved overrides. */
-export function loadConfig(): Config {
-  return mergeOverrides(baseConfig, loadOverrides());
+/** Safe JSON parse for values coming back from the host kv store. */
+export function parseJSON<T>(json: string | null, fallback: T): T {
+  if (!json) return fallback;
+  try {
+    return JSON.parse(json) as T;
+  } catch {
+    return fallback;
+  }
 }
 
-/* ---------------- selection helpers ---------------- */
+/* ---------------- selection + size helpers ---------------- */
 
 export function buildBaseName(cfg: Config, s: Selection): string | null {
   if (!s.client || !s.size || !s.lang || !s.tc) return null;
@@ -135,14 +135,32 @@ export function buildBaseName(cfg: Config, s: Selection): string | null {
     .replace("{tc}", s.tc);
 }
 
-export function persistSelection(s: Selection) {
-  localStorage.setItem("selection", JSON.stringify(s));
+/** Build the filename base for an explicit size value (batch mode). */
+export function buildBaseNameForSize(
+  cfg: Config,
+  s: Selection,
+  sizeValue: string,
+): string | null {
+  return buildBaseName(cfg, { ...s, size: sizeValue });
 }
 
-export function loadSelection(): Partial<Selection> {
-  try {
-    return JSON.parse(localStorage.getItem("selection") || "{}");
-  } catch {
-    return {};
-  }
+/** "Square — 1080×1080" */
+export function sizeLabel(s: SizeOption): string {
+  return `${s.label} — ${s.w}×${s.h}`;
+}
+
+export function findSize(cfg: Config, value: string | null): SizeOption | undefined {
+  return cfg.sizes.find((s) => s.value === value);
+}
+
+/** Sizes grouped by category, in category order; empty categories are hidden. */
+export function sizesByCategory(
+  cfg: Config,
+): { category: Option; sizes: SizeOption[] }[] {
+  return cfg.categories
+    .map((category) => ({
+      category,
+      sizes: cfg.sizes.filter((s) => s.category === category.value),
+    }))
+    .filter((group) => group.sizes.length > 0);
 }

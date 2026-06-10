@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import type { Brand, Config, Ui } from "../config";
+import type { Brand, Config, Ui, SizeOption } from "../config";
 import { baseConfig } from "../config";
 import { Accordion } from "../components/Accordion";
 import { CheckIcon } from "../Icons";
@@ -31,11 +31,33 @@ export const SettingsView: React.FC<Props> = ({ cfg, api, onLivePreview, onSave,
   const patchAbout = (patch: Partial<Config["about"]>) =>
     setDraft((d) => ({ ...d, about: { ...d.about, ...patch } }));
 
-  const setTcText = (client: string, lang: string, value: string) =>
+  const setSizeField = (i: number, key: keyof SizeOption, value: string) =>
+    setDraft((d) => {
+      const sizes = d.sizes.map((s, idx) =>
+        idx === i
+          ? { ...s, [key]: key === "w" || key === "h" ? parseInt(value) || 0 : value }
+          : s,
+      );
+      return { ...d, sizes };
+    });
+
+  const addSize = () =>
     setDraft((d) => ({
       ...d,
-      tcText: { ...d.tcText, [client]: { ...(d.tcText[client] || {}), [lang]: value } },
+      sizes: [
+        ...d.sizes,
+        {
+          label: "New size",
+          value: "Size" + Date.now(),
+          w: 1080,
+          h: 1080,
+          category: d.categories[0]?.value || "general",
+        },
+      ],
     }));
+
+  const removeSize = (i: number) =>
+    setDraft((d) => ({ ...d, sizes: d.sizes.filter((_, idx) => idx !== i) }));
 
   const setBrandField = (i: number, key: keyof Brand, value: string) =>
     setDraft((d) => {
@@ -123,21 +145,73 @@ export const SettingsView: React.FC<Props> = ({ cfg, api, onLivePreview, onSave,
         </button>
       </Accordion>
 
-      {/* ── Client T&C text ── */}
-      <Accordion title="Client T&C text" defaultCollapsed>
-        {cfg.clients.map((client) => (
-          <div className="client-tc-block" key={client}>
-            <div className="client-tc-name">{client}</div>
-            {["EN", "AR"].map((lang) => (
-              <div className="field" key={lang}>
-                <label className="field-label">{lang}</label>
-                <textarea
-                  className="textarea"
-                  value={(draft.tcText[client] || {})[lang] || ""}
-                  onChange={(e) => setTcText(client, lang, e.target.value)}
+      {/* ── Sizes & categories ── */}
+      <Accordion
+        title="Sizes"
+        defaultCollapsed
+        footer={
+          <button className="btn-ghost wide" onClick={addSize}>
+            + Add size
+          </button>
+        }
+      >
+        {draft.sizes.map((s, i) => (
+          <div className="brand-edit-block" key={i}>
+            <div className="row2">
+              <div className="field">
+                <label className="field-label">Label</label>
+                <input
+                  className="text-input"
+                  value={s.label}
+                  onChange={(e) => setSizeField(i, "label", e.target.value)}
                 />
               </div>
-            ))}
+              <div className="field">
+                <label className="field-label">Name (filename)</label>
+                <input
+                  className="text-input"
+                  value={s.value}
+                  onChange={(e) => setSizeField(i, "value", e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="row2">
+              <div className="field">
+                <label className="field-label">Width (px)</label>
+                <input
+                  type="number"
+                  className="text-input"
+                  value={s.w}
+                  onChange={(e) => setSizeField(i, "w", e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label className="field-label">Height (px)</label>
+                <input
+                  type="number"
+                  className="text-input"
+                  value={s.h}
+                  onChange={(e) => setSizeField(i, "h", e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="field">
+              <label className="field-label">Category</label>
+              <select
+                className="text-input"
+                value={s.category}
+                onChange={(e) => setSizeField(i, "category", e.target.value)}
+              >
+                {draft.categories.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button className="btn-ghost wide" onClick={() => removeSize(i)}>
+              Remove size
+            </button>
           </div>
         ))}
       </Accordion>

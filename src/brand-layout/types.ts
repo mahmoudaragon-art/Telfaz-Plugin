@@ -13,6 +13,19 @@ export interface Option {
   value: string;
 }
 
+/**
+ * A deliverable size. `value` feeds the {size} token in the filename pattern;
+ * `w`/`h` (pixels) drive artboard creation and the "label — w×h" display.
+ * `category` groups it for the batch (Multiple) picker.
+ */
+export interface SizeOption {
+  label: string;
+  value: string;
+  w: number;
+  h: number;
+  category: string;
+}
+
 export interface Brand {
   id: string;
   name: string;
@@ -49,7 +62,9 @@ export interface Config {
   namePattern: string;
   extensions: string[];
   clients: string[];
-  sizes: Option[];
+  /** Ordered category list for grouping sizes in the Multiple picker. */
+  categories: Option[];
+  sizes: SizeOption[];
   languages: Option[];
   tc: Option[];
   tcText: Record<string, Record<string, string>>;

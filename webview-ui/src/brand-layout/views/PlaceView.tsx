@@ -1,13 +1,23 @@
 import React, { useEffect, useState } from "react";
-import type { Config, Selection } from "../config";
-import { buildBaseName } from "../config";
+import type { Config, Selection, VerifyResult } from "../config";
+import { buildBaseName, sizeLabel, sizesByCategory } from "../config";
+import type { API } from "../../../../src/api/api";
 import { Dropdown } from "../components/Dropdown";
 import { Segmented } from "../components/Segmented";
-import { FileIcon, FolderIcon, PencilIcon, PlaceIcon, ShieldIcon } from "../Icons";
-import type { VerifyResult } from "../config";
+import {
+  ArtboardIcon,
+  CheckIcon,
+  DirectionIcon,
+  FileIcon,
+  FolderIcon,
+  PencilIcon,
+  PlaceIcon,
+  ShieldIcon,
+} from "../Icons";
 
 interface Props {
   cfg: Config;
+  api: API;
   selection: Selection;
   onSelect: (key: keyof Selection, value: string) => void;
   folderPath: string | null;
@@ -16,11 +26,15 @@ interface Props {
   verify: VerifyResult | null;
   onCloseVerify: () => void;
   onPlace: () => void;
-  onWriteTc: (text: string) => void;
+  onCreateArtboards: (sizeValues: string[]) => void;
+  onWriteTc: (text: string, dir: "rtl" | "ltr") => void;
 }
+
+type Mode = "single" | "multiple";
 
 export const PlaceView: React.FC<Props> = ({
   cfg,
+  api,
   selection,
   onSelect,
   folderPath,
@@ -29,24 +43,55 @@ export const PlaceView: React.FC<Props> = ({
   verify,
   onCloseVerify,
   onPlace,
+  onCreateArtboards,
   onWriteTc,
 }) => {
-  const base = buildBaseName(cfg, selection);
   const connected = !!folderPath;
-  const placeDisabled = !(base && connected);
+  const base = buildBaseName(cfg, selection);
 
-  const showTc = selection.tc === "TC" && !!selection.client;
-  const savedTc =
-    showTc && selection.client
-      ? (cfg.tcText[selection.client] || {})[selection.lang || "EN"] || ""
-      : "";
+  const [mode, setMode] = useState<Mode>("single");
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const toggleSize = (value: string) =>
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
 
-  const [tcText, setTcText] = useState(savedTc);
-  // Re-seed the T&C textarea whenever the relevant selection changes.
+  const groups = sizesByCategory(cfg);
+
+  /* ---- T&C (shown once a language + T&C=TC are chosen, any client) ---- */
+  const showTc = selection.tc === "TC" && !!selection.lang;
+  const [tcText, setTcText] = useState("");
+  const [dir, setDir] = useState<"rtl" | "ltr">(selection.lang === "AR" ? "rtl" : "ltr");
   useEffect(() => {
-    setTcText(savedTc);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selection.client, selection.lang, selection.tc, cfg]);
+    setDir(selection.lang === "AR" ? "rtl" : "ltr");
+  }, [selection.lang]);
+  useEffect(() => {
+    api
+      .kvGet("tcDraft")
+      .then((v) => v && setTcText(v))
+      .catch(() => {});
+  }, []);
+  const onTcChange = (v: string) => {
+    setTcText(v);
+    api.kvSet("tcDraft", v).catch(() => {});
+  };
+
+  const placeDisabled = !(base && connected);
+  const createDisabled =
+    !connected ||
+    !selection.client ||
+    !selection.lang ||
+    !selection.tc ||
+    (mode === "single" ? !selection.size : checked.size === 0);
+
+  const handleCreate = () => {
+    const sizes =
+      mode === "single" ? (selection.size ? [selection.size] : []) : Array.from(checked);
+    onCreateArtboards(sizes);
+  };
 
   return (
     <section className="view active">
@@ -104,15 +149,63 @@ export const PlaceView: React.FC<Props> = ({
         />
       </div>
 
+      {/* Single vs Multiple */}
       <div className="field">
-        <label className="field-label">Size</label>
-        <Dropdown
-          items={cfg.sizes}
-          value={selection.size}
-          placeholder="Select size"
-          onChange={(v) => onSelect("size", v)}
+        <label className="field-label">Mode</label>
+        <Segmented
+          items={[
+            { label: "Single", value: "single" },
+            { label: "Multiple", value: "multiple" },
+          ]}
+          value={mode}
+          onChange={(v) => setMode(v as Mode)}
         />
       </div>
+
+      {/* Size — single dropdown / multiple checklist by category */}
+      {mode === "single" ? (
+        <div className="field">
+          <label className="field-label">Size</label>
+          <Dropdown
+            items={cfg.sizes.map((s) => ({ label: sizeLabel(s), value: s.value }))}
+            value={selection.size}
+            placeholder="Select size"
+            onChange={(v) => onSelect("size", v)}
+          />
+        </div>
+      ) : (
+        <div className="field">
+          <label className="field-label">Sizes</label>
+          {groups.length === 0 ? (
+            <div className="folder-hint">No sizes yet — add some in Settings → Sizes.</div>
+          ) : (
+            <div className="size-groups">
+              {groups.map((g) => (
+                <div className="size-group" key={g.category.value}>
+                  <div className="size-group-head">{g.category.label}</div>
+                  {g.sizes.map((s) => {
+                    const on = checked.has(s.value);
+                    return (
+                      <label className={"check-row" + (on ? " checked" : "")} key={s.value}>
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          onChange={() => toggleSize(s.value)}
+                        />
+                        <span className="check-box">{on && <CheckIcon />}</span>
+                        <span className="check-label">{s.label}</span>
+                        <span className="check-dim">
+                          {s.w}×{s.h}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="field">
         <label className="field-label">Language</label>
@@ -124,32 +217,56 @@ export const PlaceView: React.FC<Props> = ({
         <Segmented items={cfg.tc} value={selection.tc} onChange={(v) => onSelect("tc", v)} />
       </div>
 
-      <div className="preview-chip">
-        <FileIcon />
-        <span className="preview-label">Will place</span>
-        <span className="preview-name">{base ? base + ".{ai|psd}" : "—"}</span>
-      </div>
+      {mode === "single" && (
+        <div className="preview-chip">
+          <FileIcon />
+          <span className="preview-label">Will place</span>
+          <span className="preview-name">{base ? base + ".{ai|psd}" : "—"}</span>
+        </div>
+      )}
 
-      <button className="btn-primary" disabled={placeDisabled} onClick={onPlace}>
-        <span className="btn-ico">
-          <PlaceIcon />
-        </span>
-        <span className="btn-text">Place Linked Asset</span>
-      </button>
+      <div className="action-row">
+        {mode === "single" && (
+          <button className="btn-primary" disabled={placeDisabled} onClick={onPlace}>
+            <span className="btn-ico">
+              <PlaceIcon />
+            </span>
+            <span className="btn-text">Place Linked Asset</span>
+          </button>
+        )}
+        <button className="btn-primary" disabled={createDisabled} onClick={handleCreate}>
+          <span className="btn-ico">
+            <ArtboardIcon />
+          </span>
+          <span className="btn-text">
+            {mode === "single"
+              ? "Create Artboard & Place"
+              : `Create ${checked.size || ""} Artboard${checked.size === 1 ? "" : "s"} & Place`}
+          </span>
+        </button>
+      </div>
 
       {showTc && (
         <div className="card tc-card">
           <div className="tc-head">
             <span className="field-label">T&amp;C text to write</span>
-            <span className="mini-tag">{selection.lang || "EN"}</span>
+            <button
+              className="dir-toggle"
+              onClick={() => setDir((d) => (d === "rtl" ? "ltr" : "rtl"))}
+              title="Toggle writing direction"
+            >
+              <DirectionIcon />
+              {dir.toUpperCase()}
+            </button>
           </div>
           <textarea
             className="textarea"
-            placeholder="Auto-filled from Settings — editable before placing."
+            dir={dir}
+            placeholder="Type the Terms &amp; Conditions text…"
             value={tcText}
-            onChange={(e) => setTcText(e.target.value)}
+            onChange={(e) => onTcChange(e.target.value)}
           />
-          <button className="btn-secondary" onClick={() => onWriteTc(tcText)}>
+          <button className="btn-secondary" onClick={() => onWriteTc(tcText, dir)}>
             <PencilIcon />
             Write T&amp;C on artboard
           </button>
