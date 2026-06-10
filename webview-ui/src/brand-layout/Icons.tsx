@@ -131,14 +131,16 @@ export const TabBrands = () => (
   </svg>
 );
 
+/* Symmetric gear — centers cleanly above the label. */
 export const TabSettings = () => (
   <svg className="tab-ico" viewBox="0 0 20 20" fill="none" width="18" height="18">
-    <line x1="3" y1="5.5" x2="17" y2="5.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-    <line x1="3" y1="10" x2="17" y2="10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-    <line x1="3" y1="14.5" x2="17" y2="14.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-    <circle cx="7.5" cy="5.5" r="2.3" stroke="currentColor" strokeWidth="1.3" />
-    <circle cx="12.5" cy="10" r="2.3" stroke="currentColor" strokeWidth="1.3" />
-    <circle cx="8.5" cy="14.5" r="2.3" stroke="currentColor" strokeWidth="1.3" />
+    <path
+      d="M10 2.6l1.1 1.9 2.2-.3.5 2.2 2 1-.9 2 .9 2-2 1-.5 2.2-2.2-.3L10 17.4l-1.1-1.9-2.2.3-.5-2.2-2-1 .9-2-.9-2 2-1 .5-2.2 2.2.3L10 2.6z"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinejoin="round"
+    />
+    <circle cx="10" cy="10" r="2.6" stroke="currentColor" strokeWidth="1.3" />
   </svg>
 );
 

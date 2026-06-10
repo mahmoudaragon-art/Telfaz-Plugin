@@ -38,8 +38,11 @@ export const baseConfig: Config = {
   // Categories are prepared up front; sizes get added per category later.
   categories: [
     { label: "General", value: "general" },
-    { label: "Social Media", value: "social" },
     { label: "Google Ads", value: "google" },
+    { label: "Cute Box", value: "cutebox" },
+    { label: "Airport Screen", value: "airport" },
+    { label: "Arabia Screens", value: "arabia" },
+    { label: "MUPI Screens", value: "mupi" },
   ],
   sizes: [
     { label: "Square", value: "Square", w: 1080, h: 1080, category: "general" },

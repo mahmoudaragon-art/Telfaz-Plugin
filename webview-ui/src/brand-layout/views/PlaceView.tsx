@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import type { Config, Selection, VerifyResult } from "../config";
-import { buildBaseName, sizeLabel, sizesByCategory, findSize } from "../config";
+import { buildBaseName, sizeLabel, findSize } from "../config";
 import { clientLogos, whiteClients } from "../clientLogos";
 import type { API } from "../../../../src/api/api";
 import { Dropdown } from "../components/Dropdown";
@@ -8,6 +8,7 @@ import { Segmented } from "../components/Segmented";
 import {
   ArtboardIcon,
   CheckIcon,
+  Chevron,
   DirectionIcon,
   FileIcon,
   FolderIcon,
@@ -66,8 +67,8 @@ export const PlaceView: React.FC<Props> = ({
       return next;
     });
 
-  // Client logo for the dropdown trigger + items.
-  const clientLeading = (value: string) =>
+  // Client logo, rendered on the right of the dropdown row (text on the left).
+  const clientTrailing = (value: string) =>
     clientLogos[value] ? (
       <img
         className={"client-logo" + (whiteClients.has(value) ? " white" : "")}
@@ -76,7 +77,22 @@ export const PlaceView: React.FC<Props> = ({
       />
     ) : null;
 
-  const groups = sizesByCategory(cfg);
+  // All categories with their sizes (empty ones included so they're visible);
+  // each is collapsible.
+  const cats = cfg.categories.map((category) => ({
+    category,
+    sizes: cfg.sizes.filter((s) => s.category === category.value),
+  }));
+  const [openCats, setOpenCats] = useState<Set<string>>(
+    () => new Set(cats.filter((c) => c.sizes.length).map((c) => c.category.value)),
+  );
+  const toggleCat = (value: string) =>
+    setOpenCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
 
   // Friendly summary of what will be placed (single mode).
   const selSize = findSize(cfg, selection.size);
@@ -170,7 +186,7 @@ export const PlaceView: React.FC<Props> = ({
           value={selection.client}
           placeholder="Select client"
           onChange={(v) => onSelect("client", v)}
-          leading={clientLeading}
+          trailing={clientTrailing}
         />
       </div>
 
@@ -201,46 +217,72 @@ export const PlaceView: React.FC<Props> = ({
       ) : (
         <div className="field">
           <label className="field-label">Sizes</label>
-          {groups.length === 0 ? (
-            <div className="folder-hint">No sizes yet — add some in Settings → Sizes.</div>
-          ) : (
-            <div className="size-groups">
-              {groups.map((g) => {
-                const vals = g.sizes.map((s) => s.value);
-                const allOn = vals.every((v) => checked.has(v));
-                return (
-                <div className="size-group" key={g.category.value}>
-                  <label className={"size-group-head" + (allOn ? " checked" : "")}>
-                    <input
-                      type="checkbox"
-                      checked={allOn}
-                      onChange={() => toggleGroup(vals, !allOn)}
-                    />
-                    <span className="check-box sm">{allOn && <CheckIcon />}</span>
-                    {g.category.label}
-                  </label>
-                  {g.sizes.map((s) => {
-                    const on = checked.has(s.value);
-                    return (
-                      <label className={"check-row" + (on ? " checked" : "")} key={s.value}>
-                        <input
-                          type="checkbox"
-                          checked={on}
-                          onChange={() => toggleSize(s.value)}
-                        />
-                        <span className="check-box">{on && <CheckIcon />}</span>
-                        <span className="check-label">{s.label}</span>
-                        <span className="check-dim">
-                          {s.w}×{s.h}
-                        </span>
-                      </label>
-                    );
-                  })}
+          <div className="size-groups">
+            {cats.map((g) => {
+              const vals = g.sizes.map((s) => s.value);
+              const allOn = vals.length > 0 && vals.every((v) => checked.has(v));
+              const selCount = vals.filter((v) => checked.has(v)).length;
+              const isOpen = openCats.has(g.category.value);
+              return (
+                <div
+                  className={"size-group" + (isOpen ? " open" : "")}
+                  key={g.category.value}
+                >
+                  <div className="size-group-head">
+                    <span
+                      className={"check-box sm" + (allOn ? " on" : "")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (vals.length) toggleGroup(vals, !allOn);
+                      }}
+                    >
+                      {allOn && <CheckIcon />}
+                    </span>
+                    <button
+                      className="size-group-toggle"
+                      onClick={() => toggleCat(g.category.value)}
+                    >
+                      <span className="size-group-name">{g.category.label}</span>
+                      <span className="size-group-meta">
+                        {selCount ? `${selCount}/${vals.length}` : vals.length || "—"}
+                      </span>
+                      <span className="size-group-chevron">
+                        <Chevron />
+                      </span>
+                    </button>
+                  </div>
+                  {isOpen && (
+                    <div className="size-group-body">
+                      {vals.length === 0 ? (
+                        <div className="folder-hint">No sizes yet — add in Settings → Sizes.</div>
+                      ) : (
+                        g.sizes.map((s) => {
+                          const on = checked.has(s.value);
+                          return (
+                            <label
+                              className={"check-row" + (on ? " checked" : "")}
+                              key={s.value}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={on}
+                                onChange={() => toggleSize(s.value)}
+                              />
+                              <span className="check-box">{on && <CheckIcon />}</span>
+                              <span className="check-label">{s.label}</span>
+                              <span className="check-dim">
+                                {s.w}×{s.h}
+                              </span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
                 </div>
-                );
-              })}
-            </div>
-          )}
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -253,6 +295,33 @@ export const PlaceView: React.FC<Props> = ({
         <label className="field-label">Terms &amp; Conditions</label>
         <Segmented items={cfg.tc} value={selection.tc} onChange={(v) => onSelect("tc", v)} />
       </div>
+
+      {showTc && (
+        <div className="card tc-card">
+          <div className="tc-head">
+            <span className="field-label">T&amp;C text to write</span>
+            <button
+              className="dir-toggle"
+              onClick={() => setDir((d) => (d === "rtl" ? "ltr" : "rtl"))}
+              title="Toggle writing direction"
+            >
+              <DirectionIcon />
+              {dir.toUpperCase()}
+            </button>
+          </div>
+          <textarea
+            className="textarea"
+            dir={dir}
+            placeholder="Type the Terms &amp; Conditions text…"
+            value={tcText}
+            onChange={(e) => onTcChange(e.target.value)}
+          />
+          <button className="btn-secondary" onClick={() => onWriteTc(tcText, dir)}>
+            <PencilIcon />
+            Write T&amp;C on artboard
+          </button>
+        </div>
+      )}
 
       {mode === "single" && (
         <div className="preview-chip">
@@ -282,33 +351,6 @@ export const PlaceView: React.FC<Props> = ({
           </span>
         </button>
       </div>
-
-      {showTc && (
-        <div className="card tc-card">
-          <div className="tc-head">
-            <span className="field-label">T&amp;C text to write</span>
-            <button
-              className="dir-toggle"
-              onClick={() => setDir((d) => (d === "rtl" ? "ltr" : "rtl"))}
-              title="Toggle writing direction"
-            >
-              <DirectionIcon />
-              {dir.toUpperCase()}
-            </button>
-          </div>
-          <textarea
-            className="textarea"
-            dir={dir}
-            placeholder="Type the Terms &amp; Conditions text…"
-            value={tcText}
-            onChange={(e) => onTcChange(e.target.value)}
-          />
-          <button className="btn-secondary" onClick={() => onWriteTc(tcText, dir)}>
-            <PencilIcon />
-            Write T&amp;C on artboard
-          </button>
-        </div>
-      )}
     </section>
   );
 };
