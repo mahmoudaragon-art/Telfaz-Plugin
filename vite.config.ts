@@ -7,6 +7,8 @@ import { config } from "./uxp.config";
 const action = process.env.BOLT_ACTION;
 const mode = process.env.MODE;
 process.env.VITE_BOLT_MODE = mode;
+process.env.VITE_BOLT_WEBVIEW_UI = (config.webviewUi === true).toString();
+process.env.VITE_BOLT_WEBVIEW_PORT = config.webviewReloadPort.toString();
 
 if (action) runAction(config, action);
 

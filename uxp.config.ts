@@ -3,7 +3,9 @@ import { version } from "./package.json";
 
 const extraPrefs: UXP_Config_Extra = {
   hotReloadPort: 8080,
-    copyZipAssets: ["public-zip/*"],
+  webviewUi: true,
+  webviewReloadPort: 8082,
+  copyZipAssets: ["public-zip/*"],
   uniqueIds: true,
   debugger: "udt",
 };
@@ -118,6 +120,7 @@ const manifest: UXP_Manifest = {
         "https://reactjs.org",
         "https://vuejs.org/",
         `ws://localhost:${extraPrefs.hotReloadPort}`, // Required for hot reload
+        `http://localhost:${extraPrefs.webviewReloadPort}`, // Webview dev server
       ],
     },
     clipboard: "readAndWrite",

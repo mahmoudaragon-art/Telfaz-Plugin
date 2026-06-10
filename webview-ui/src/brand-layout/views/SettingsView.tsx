@@ -3,10 +3,11 @@ import type { Brand, Config, Ui } from "../config";
 import { baseConfig } from "../config";
 import { Accordion } from "../components/Accordion";
 import { CheckIcon } from "../Icons";
-import { pickLogoDataUrl } from "../host";
+import type { API } from "../../../../src/api/api";
 
 interface Props {
   cfg: Config;
+  api: API;
   onLivePreview: (ui: Ui) => void;
   onSave: (cfg: Config) => void;
   setStatus: (msg: string, kind?: string) => void;
@@ -14,7 +15,7 @@ interface Props {
 
 const clone = (c: Config): Config => JSON.parse(JSON.stringify(c));
 
-export const SettingsView: React.FC<Props> = ({ cfg, onLivePreview, onSave, setStatus }) => {
+export const SettingsView: React.FC<Props> = ({ cfg, api, onLivePreview, onSave, setStatus }) => {
   const [draft, setDraft] = useState<Config>(() => clone(cfg));
 
   /* ---- generic patch helpers ---- */
@@ -63,7 +64,7 @@ export const SettingsView: React.FC<Props> = ({ cfg, onLivePreview, onSave, setS
 
   const pickLogo = async () => {
     try {
-      const res = await pickLogoDataUrl();
+      const res = await api.pickLogoDataUrl();
       if (!res) return;
       patchUi({ logo: res.dataUrl });
       setStatus("Logo set — Save to keep it", "ok");

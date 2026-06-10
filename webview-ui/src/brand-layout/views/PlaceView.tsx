@@ -4,7 +4,7 @@ import { buildBaseName } from "../config";
 import { Dropdown } from "../components/Dropdown";
 import { Segmented } from "../components/Segmented";
 import { FileIcon, FolderIcon, PencilIcon, PlaceIcon, ShieldIcon } from "../Icons";
-import type { VerifyResult } from "../host";
+import type { VerifyResult } from "../config";
 
 interface Props {
   cfg: Config;

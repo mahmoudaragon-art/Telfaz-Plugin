@@ -5,6 +5,7 @@ import {
   Config,
   Selection,
   Ui,
+  VerifyResult,
   buildBaseName,
   loadConfig,
   loadSelection,
@@ -12,18 +13,7 @@ import {
   persistSelection,
   saveOverrides,
 } from "./config";
-import {
-  HOST,
-  VerifyResult,
-  connectFolder,
-  folderLabel,
-  importColors,
-  openExternal,
-  placeAsset,
-  restoreFolder,
-  verifyAssets,
-  writeTc,
-} from "./host";
+import type { API } from "../../../src/api/api";
 import { LogoMark } from "./Icons";
 import { PlaceView } from "./views/PlaceView";
 import { BrandsView } from "./views/BrandsView";
@@ -33,8 +23,9 @@ import { TabAbout, TabBrands, TabPlace, TabSettings } from "./Icons";
 
 type View = "place" | "brands" | "settings" | "about";
 
-export const BrandLayoutApp: React.FC = () => {
+export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
   const [cfg, setCfg] = useState<Config>(() => loadConfig());
+  const [hostName, setHostName] = useState<string>("");
   const [view, setView] = useState<View>("place");
   const [selection, setSelection] = useState<Selection>(() => {
     const s = loadSelection();
@@ -47,7 +38,9 @@ export const BrandLayoutApp: React.FC = () => {
     };
     return init;
   });
-  const [folder, setFolder] = useState<any | null>(null);
+  // The actual UXP folder lives on the host; the webview only tracks whether
+  // one is connected and its display path.
+  const [connected, setConnected] = useState<boolean>(false);
   const [folderPath, setFolderPath] = useState<string | null>(null);
   const [verify, setVerify] = useState<VerifyResult | null>(null);
   const [status, setStatusState] = useState<{ msg: string; kind: string }>({ msg: "", kind: "" });
@@ -69,14 +62,19 @@ export const BrandLayoutApp: React.FC = () => {
     r.setProperty("--orange-2", themeUi.accent2);
   }, [themeUi.accent, themeUi.accent2]);
 
-  /* ---- restore connected folder on boot ---- */
+  /* ---- read host name + restore connected folder on boot ---- */
   useEffect(() => {
     (async () => {
       try {
-        const f = await restoreFolder();
+        setHostName(await api.getHostName());
+      } catch {
+        /* ignore */
+      }
+      try {
+        const f = await api.restoreFolder();
         if (f) {
-          setFolder(f);
-          setFolderPath(folderLabel(f));
+          setConnected(true);
+          setFolderPath(f.path);
         }
       } catch {
         /* ignore */
@@ -97,10 +95,10 @@ export const BrandLayoutApp: React.FC = () => {
   /* ---- place ---- */
   const handleConnect = async () => {
     try {
-      const f = await connectFolder();
+      const f = await api.connectFolder();
       if (!f) return;
-      setFolder(f);
-      setFolderPath(folderLabel(f));
+      setConnected(true);
+      setFolderPath(f.path);
       setStatus("Folder connected", "ok");
     } catch (e: any) {
       setStatus("Could not connect: " + e.message, "err");
@@ -110,10 +108,10 @@ export const BrandLayoutApp: React.FC = () => {
   const handlePlace = async () => {
     const base = buildBaseName(cfg, selection);
     if (!base) return setStatus("Pick all options first", "err");
-    if (!folder) return setStatus("Connect the source folder first", "err");
+    if (!connected) return setStatus("Connect the source folder first", "err");
     setStatus("Placing " + base + " …", "busy");
     try {
-      const name = await placeAsset(folder, base, cfg);
+      const name = await api.placeAsset(base, cfg);
       setStatus("Placed (linked): " + name, "ok");
     } catch (e: any) {
       setStatus("Place failed: " + e.message, "err");
@@ -121,10 +119,10 @@ export const BrandLayoutApp: React.FC = () => {
   };
 
   const handleVerify = async () => {
-    if (!folder) return setStatus("Connect the folder first", "err");
+    if (!connected) return setStatus("Connect the folder first", "err");
     setStatus("Scanning folder…", "busy");
     try {
-      const res = await verifyAssets(folder, cfg);
+      const res = await api.verifyAssets(cfg);
       setVerify(res);
       setStatus(res.missing.length ? res.missing.length + " missing" : "All present", res.missing.length ? "err" : "ok");
     } catch (e: any) {
@@ -137,7 +135,7 @@ export const BrandLayoutApp: React.FC = () => {
     if (!t) return setStatus("T&C text is empty", "err");
     setStatus("Writing T&C …", "busy");
     try {
-      await writeTc(t, cfg.tcStyle, selection.lang || "EN");
+      await api.writeTc(t, cfg.tcStyle, selection.lang || "EN");
       setStatus("T&C written", "ok");
     } catch (e: any) {
       setStatus("T&C failed: " + e.message, "err");
@@ -149,13 +147,13 @@ export const BrandLayoutApp: React.FC = () => {
   const handleOpenGuidelines = async () => {
     const b = currentBrand();
     if (!b || !b.guidelinesUrl) return setStatus("No guidelines link set (add in Settings)", "err");
-    await openExternal(b.guidelinesUrl);
+    await api.openExternal(b.guidelinesUrl);
     setStatus("Opened guidelines", "ok");
   };
   const handleOpenFonts = async () => {
     const b = currentBrand();
     if (!b || !b.fontsUrl) return setStatus("No fonts link set (add in Settings)", "err");
-    await openExternal(b.fontsUrl);
+    await api.openExternal(b.fontsUrl);
     setStatus("Opened fonts link", "ok");
   };
   const handleImportColors = async () => {
@@ -163,7 +161,7 @@ export const BrandLayoutApp: React.FC = () => {
     if (!b || !(b.colors || []).length) return setStatus("No colors set for this brand", "err");
     setStatus("Importing colors …", "busy");
     try {
-      await importColors(b);
+      await api.importColors(b);
       setStatus("Imported " + b.colors.length + " colors", "ok");
     } catch (e: any) {
       setStatus("Import failed: " + e.message, "err");
@@ -205,7 +203,7 @@ export const BrandLayoutApp: React.FC = () => {
             <span className="brand-sub">Linked asset manager</span>
           </div>
         </div>
-        <div className="host-badge">{HOST}</div>
+        <div className="host-badge">{hostName}</div>
       </header>
 
       {/* Views */}
@@ -238,12 +236,13 @@ export const BrandLayoutApp: React.FC = () => {
           <SettingsView
             key={JSON.stringify(cfg)}
             cfg={cfg}
+            api={api}
             onLivePreview={setLivePreviewUi}
             onSave={handleSaveSettings}
             setStatus={setStatus}
           />
         )}
-        {view === "about" && <AboutView cfg={cfg} />}
+        {view === "about" && <AboutView cfg={cfg} api={api} />}
       </main>
 
       {/* Status bar */}

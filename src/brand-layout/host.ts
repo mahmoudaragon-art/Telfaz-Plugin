@@ -4,14 +4,31 @@
    ============================================================ */
 
 import { uxp, photoshop, illustrator } from "../globals";
-import type { Brand, Config, TcStyle } from "./config";
+import type { Brand, Config, TcStyle, FolderInfo, VerifyResult } from "./types";
+
+export type { VerifyResult } from "./types";
 
 const fs = uxp.storage.localFileSystem;
 const shell = uxp.shell;
 
 export const HOST = uxp.host.name; // "Photoshop" | "Illustrator"
 
-export function getPluginVersion(): string {
+/** Bridge-safe host name accessor (the webview reads this once on mount). */
+export async function getHostName(): Promise<string> {
+  return HOST;
+}
+
+/**
+ * The connected source folder lives here on the host side. The webview can't
+ * hold a native UXP folder entry, so it triggers connect/restore and we keep
+ * the live reference; subsequent calls (place / verify) use this.
+ */
+let currentFolder: any = null;
+export function hasFolder(): boolean {
+  return !!currentFolder;
+}
+
+export async function getPluginVersion(): Promise<string> {
   try {
     return (uxp.entrypoints as any)._pluginInfo.version || "1.0.0";
   } catch {
@@ -34,26 +51,32 @@ export async function openExternal(url: string) {
 
 /* ---------------- folder connect / restore ---------------- */
 
-export async function connectFolder(): Promise<any | null> {
-  const folder = await fs.getFolder({});
-  if (!folder) return null;
-  localStorage.setItem("assetsFolderToken", await fs.createPersistentToken(folder));
-  return folder;
+function folderLabel(folder: any): string {
+  return folder.nativePath || folder.name;
 }
 
-export async function restoreFolder(): Promise<any | null> {
+/** Open the system picker, store the folder on the host, return its path. */
+export async function connectFolder(): Promise<FolderInfo | null> {
+  const folder = await fs.getFolder({});
+  if (!folder) return null;
+  currentFolder = folder;
+  localStorage.setItem("assetsFolderToken", await fs.createPersistentToken(folder));
+  return { path: folderLabel(folder) };
+}
+
+/** Re-open the previously connected folder from its persistent token. */
+export async function restoreFolder(): Promise<FolderInfo | null> {
   const token = localStorage.getItem("assetsFolderToken");
   if (!token) return null;
   try {
-    return await fs.getEntryForPersistentToken(token);
+    const folder = await fs.getEntryForPersistentToken(token);
+    if (!folder) return null;
+    currentFolder = folder;
+    return { path: folderLabel(folder) };
   } catch {
     localStorage.removeItem("assetsFolderToken");
     return null;
   }
-}
-
-export function folderLabel(folder: any): string {
-  return folder.nativePath || folder.name;
 }
 
 /* ---------------- asset resolution + placement ---------------- */
@@ -72,8 +95,9 @@ async function resolveAssetEntry(folder: any, base: string, cfg: Config) {
 }
 
 /** Resolve + place the linked asset for the current base name. Returns placed file name. */
-export async function placeAsset(folder: any, base: string, cfg: Config): Promise<string> {
-  const entry = await resolveAssetEntry(folder, base, cfg);
+export async function placeAsset(base: string, cfg: Config): Promise<string> {
+  if (!currentFolder) throw new Error("Connect the source folder first");
+  const entry = await resolveAssetEntry(currentFolder, base, cfg);
   if (!entry) throw new Error("Not found: " + base + ".(ai|psd)");
   if (HOST === "Photoshop") await placeLinkedPhotoshop(entry);
   else if (HOST === "Illustrator") await placeLinkedIllustrator(entry);
@@ -290,12 +314,6 @@ async function importColorsPhotoshop(brand: Brand) {
 
 /* ---------------- verify assets ---------------- */
 
-export interface VerifyResult {
-  present: number;
-  total: number;
-  missing: string[];
-}
-
 function buildAllCombos(cfg: Config): string[] {
   const combos: string[] = [];
   for (const client of cfg.clients)
@@ -312,8 +330,9 @@ function buildAllCombos(cfg: Config): string[] {
   return combos;
 }
 
-export async function verifyAssets(folder: any, cfg: Config): Promise<VerifyResult> {
-  const entries = await folder.getEntries();
+export async function verifyAssets(cfg: Config): Promise<VerifyResult> {
+  if (!currentFolder) throw new Error("Connect the folder first");
+  const entries = await currentFolder.getEntries();
   const names = new Set(
     entries.filter((e: any) => e.isFile).map((e: any) => e.name.toLowerCase()),
   );

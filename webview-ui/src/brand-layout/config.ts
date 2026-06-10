@@ -1,66 +1,33 @@
 /* ============================================================
    Brand Layout — configuration model + persistence
    Ported from the original config.json + override system.
+
+   The data *shapes* live in the shared contract (src/brand-layout/types.ts)
+   so the UXP host and this webview agree on what crosses the bridge. This
+   file owns the base config + localStorage persistence (webview side).
    ============================================================ */
 
-export interface Option {
-  label: string;
-  value: string;
-}
+import type {
+  Option,
+  Brand,
+  TcStyle,
+  About,
+  Ui,
+  Config,
+  Selection,
+} from "../../../src/brand-layout/types";
 
-export interface Brand {
-  id: string;
-  name: string;
-  guidelinesUrl: string;
-  fontsUrl: string;
-  colors: string[];
-}
-
-export interface TcStyle {
-  fontEN: string;
-  fontAR: string;
-  sizePt: number;
-  color: string;
-  anchor: string;
-  marginPt: number;
-}
-
-export interface About {
-  author: string;
-  role: string;
-  email: string;
-  bio: string;
-  links: string[];
-}
-
-export interface Ui {
-  accent: string;
-  accent2: string;
-  particles: boolean;
-  logo: string | null;
-}
-
-export interface Config {
-  namePattern: string;
-  extensions: string[];
-  clients: string[];
-  sizes: Option[];
-  languages: Option[];
-  tc: Option[];
-  tcText: Record<string, Record<string, string>>;
-  tcStyle: TcStyle;
-  brands: Brand[];
-  about: About;
-  ui: Ui;
-}
-
-export type Selection = {
-  client: string | null;
-  size: string | null;
-  lang: string | null;
-  tc: string | null;
-  brand: string | null;
-};
+export type {
+  Option,
+  Brand,
+  TcStyle,
+  About,
+  Ui,
+  Config,
+  Selection,
+  VerifyResult,
+  FolderInfo,
+} from "../../../src/brand-layout/types";
 
 /** Base configuration — was config.json in the original plugin. */
 export const baseConfig: Config = {
