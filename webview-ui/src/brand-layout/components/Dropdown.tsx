@@ -7,9 +7,11 @@ interface Props {
   value: string | null;
   placeholder: string;
   onChange: (value: string) => void;
+  /** Optional leading visual (e.g. a client logo) for the trigger + each item. */
+  leading?: (value: string) => React.ReactNode;
 }
 
-export const Dropdown: React.FC<Props> = ({ items, value, placeholder, onChange }) => {
+export const Dropdown: React.FC<Props> = ({ items, value, placeholder, onChange, leading }) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -34,6 +36,7 @@ export const Dropdown: React.FC<Props> = ({ items, value, placeholder, onChange 
         }}
       >
         <span className={"dropdown-value" + (selected ? " selected" : "")}>
+          {selected && leading && leading(selected.value)}
           {selected ? selected.label : placeholder}
         </span>
         <span className="chevron">
@@ -50,6 +53,7 @@ export const Dropdown: React.FC<Props> = ({ items, value, placeholder, onChange 
               setOpen(false);
             }}
           >
+            {leading && leading(it.value)}
             {it.label}
           </div>
         ))}

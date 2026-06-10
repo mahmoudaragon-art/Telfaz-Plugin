@@ -20,8 +20,12 @@ export const AboutView: React.FC<Props> = ({ cfg, api }) => {
   return (
     <section className="view active">
       <div className="about-hero">
-        <div className="about-logo">
-          <LogoMarkLarge />
+        <div className={"about-logo" + (cfg.ui.logo ? " has-img" : "")}>
+          {cfg.ui.logo ? (
+            <img className="about-logo-img" src={cfg.ui.logo} alt="" />
+          ) : (
+            <LogoMarkLarge />
+          )}
         </div>
         <div className="about-name">Brand Layout</div>
         <div className="about-ver">v{version}</div>

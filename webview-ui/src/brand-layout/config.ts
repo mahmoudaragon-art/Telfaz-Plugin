@@ -34,7 +34,7 @@ export type {
 export const baseConfig: Config = {
   namePattern: "{client}_{size}_{lang}_{tc}",
   extensions: ["ai", "psd"],
-  clients: ["Budget", "Nava", "Nough", "NEO", "SNB"],
+  clients: ["Budget", "Nava", "Noug", "NEO", "SNB", "GWM"],
   // Categories are prepared up front; sizes get added per category later.
   categories: [
     { label: "General", value: "general" },
@@ -79,8 +79,8 @@ export const baseConfig: Config = {
     },
   ],
   about: {
-    author: "Mahmoud",
-    role: "Designer",
+    author: "Mahmoud EL Deeb",
+    role: "Art Director",
     email: "mahmoud.aragon@gmail.com",
     bio: "Brand Layout keeps every client's logos, layouts and T&C consistent across the whole design team — one protected source, placed the same way every time.",
     links: [],

@@ -10,6 +10,7 @@ interface Props {
   onOpenGuidelines: () => void;
   onImportColors: () => void;
   onOpenFonts: () => void;
+  onPickColor: (hex: string) => void;
 }
 
 export const BrandsView: React.FC<Props> = ({
@@ -19,6 +20,7 @@ export const BrandsView: React.FC<Props> = ({
   onOpenGuidelines,
   onImportColors,
   onOpenFonts,
+  onPickColor,
 }) => {
   const brand = cfg.brands.find((b) => b.id === selection.brand);
 
@@ -39,7 +41,13 @@ export const BrandsView: React.FC<Props> = ({
         <div className="brand-panel">
           <div className="swatch-row">
             {(brand.colors || []).map((hex, i) => (
-              <div key={hex + i} className="swatch" style={{ background: hex }} title={hex} />
+              <button
+                key={hex + i}
+                className="swatch"
+                style={{ background: hex }}
+                title={`${hex} — click to set foreground`}
+                onClick={() => onPickColor(hex)}
+              />
             ))}
           </div>
           <button

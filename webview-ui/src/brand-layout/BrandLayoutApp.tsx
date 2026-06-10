@@ -218,6 +218,16 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
       setStatus("Import failed: " + e.message, "err");
     }
   };
+  const handlePickColor = async (hex: string) => {
+    try {
+      await api.setForegroundColor(hex);
+      setStatus("Foreground set " + hex, "ok");
+    } catch (e: any) {
+      setStatus("Color failed: " + e.message, "err");
+    }
+  };
+
+  const openSite = () => api.openExternal("https://www.telfaz.com").catch(() => {});
 
   /* ---- settings save (persist through host) ---- */
   const handleSaveSettings = (next: Config) => {
@@ -247,10 +257,12 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
       {/* Header */}
       <header className="header">
         <div className="brand">
-          <div className="logo-mark" style={{ display: themeUi.logo ? "none" : "flex" }}>
-            <LogoMark />
-          </div>
-          {themeUi.logo && <img className="logo-img" src={themeUi.logo} alt="" />}
+          <button className="brand-logo-btn" onClick={openSite} title="telfaz.com">
+            <div className="logo-mark" style={{ display: themeUi.logo ? "none" : "flex" }}>
+              <LogoMark />
+            </div>
+            {themeUi.logo && <img className="logo-img" src={themeUi.logo} alt="" />}
+          </button>
           <div className="brand-text">
             <span className="brand-title-row">
               <span className="brand-title">Brand Layout</span>
@@ -288,6 +300,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
             onOpenGuidelines={handleOpenGuidelines}
             onImportColors={handleImportColors}
             onOpenFonts={handleOpenFonts}
+            onPickColor={handlePickColor}
           />
         )}
         {view === "settings" && (

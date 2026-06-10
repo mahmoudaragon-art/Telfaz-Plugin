@@ -403,6 +403,31 @@ async function importColorsPhotoshop(brand: Brand) {
   );
 }
 
+/* ---------------- pick brand color → Photoshop foreground ---------------- */
+
+/** Set the Photoshop foreground color to a hex (Brands tab → click a swatch). */
+export async function setForegroundColor(hex: string) {
+  if (HOST !== "Photoshop") throw new Error("Color picking is Photoshop-only");
+  const ps = photoshop;
+  const c = hexToRgb(hex);
+  await ps.core.executeAsModal(
+    async () => {
+      await ps.action.batchPlay(
+        [
+          {
+            _obj: "set",
+            _target: [{ _ref: "color", _property: "foregroundColor" }],
+            to: { _obj: "RGBColor", red: c.r, grain: c.g, blue: c.b },
+            source: "photoshopPicker",
+          },
+        ],
+        { synchronousExecution: true } as any,
+      );
+    },
+    { commandName: "Set Foreground Color" },
+  );
+}
+
 /* ---------------- verify assets ---------------- */
 
 function buildAllCombos(cfg: Config): string[] {

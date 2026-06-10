@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import type { Config, Selection, VerifyResult } from "../config";
-import { buildBaseName, sizeLabel, sizesByCategory } from "../config";
+import { buildBaseName, sizeLabel, sizesByCategory, findSize } from "../config";
+import { clientLogos, whiteClients } from "../clientLogos";
 import type { API } from "../../../../src/api/api";
 import { Dropdown } from "../components/Dropdown";
 import { Segmented } from "../components/Segmented";
@@ -58,8 +59,31 @@ export const PlaceView: React.FC<Props> = ({
       else next.add(value);
       return next;
     });
+  const toggleGroup = (values: string[], on: boolean) =>
+    setChecked((prev) => {
+      const next = new Set(prev);
+      values.forEach((v) => (on ? next.add(v) : next.delete(v)));
+      return next;
+    });
+
+  // Client logo for the dropdown trigger + items.
+  const clientLeading = (value: string) =>
+    clientLogos[value] ? (
+      <img
+        className={"client-logo" + (whiteClients.has(value) ? " white" : "")}
+        src={clientLogos[value]}
+        alt=""
+      />
+    ) : null;
 
   const groups = sizesByCategory(cfg);
+
+  // Friendly summary of what will be placed (single mode).
+  const selSize = findSize(cfg, selection.size);
+  const willPlace =
+    selection.client && selSize && selection.lang
+      ? `${selection.client} ${selSize.label} ${selection.lang} ${selSize.w}×${selSize.h}`
+      : null;
 
   /* ---- T&C (shown once a language + T&C=TC are chosen, any client) ---- */
   const showTc = selection.tc === "TC" && !!selection.lang;
@@ -146,6 +170,7 @@ export const PlaceView: React.FC<Props> = ({
           value={selection.client}
           placeholder="Select client"
           onChange={(v) => onSelect("client", v)}
+          leading={clientLeading}
         />
       </div>
 
@@ -180,9 +205,20 @@ export const PlaceView: React.FC<Props> = ({
             <div className="folder-hint">No sizes yet — add some in Settings → Sizes.</div>
           ) : (
             <div className="size-groups">
-              {groups.map((g) => (
+              {groups.map((g) => {
+                const vals = g.sizes.map((s) => s.value);
+                const allOn = vals.every((v) => checked.has(v));
+                return (
                 <div className="size-group" key={g.category.value}>
-                  <div className="size-group-head">{g.category.label}</div>
+                  <label className={"size-group-head" + (allOn ? " checked" : "")}>
+                    <input
+                      type="checkbox"
+                      checked={allOn}
+                      onChange={() => toggleGroup(vals, !allOn)}
+                    />
+                    <span className="check-box sm">{allOn && <CheckIcon />}</span>
+                    {g.category.label}
+                  </label>
                   {g.sizes.map((s) => {
                     const on = checked.has(s.value);
                     return (
@@ -201,7 +237,8 @@ export const PlaceView: React.FC<Props> = ({
                     );
                   })}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -221,7 +258,7 @@ export const PlaceView: React.FC<Props> = ({
         <div className="preview-chip">
           <FileIcon />
           <span className="preview-label">Will place</span>
-          <span className="preview-name">{base ? base + ".{ai|psd}" : "—"}</span>
+          <span className="preview-name">{willPlace || "—"}</span>
         </div>
       )}
 

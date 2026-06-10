@@ -11,7 +11,7 @@
    --orange / --orange-2 are injected live by Settings (BrandLayoutApp).
    ============================================================ */
 
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@200;300;400;500;600;700&display=swap");
 
 :root {
   /* Surfaces — deep warm-black stack */
@@ -60,7 +60,7 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-  --font: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text",
+  --font: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "SF Pro Text",
     "Helvetica Neue", system-ui, sans-serif;
   --mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
 }
@@ -163,6 +163,14 @@ body {
 }
 
 .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.brand-logo-btn {
+  display: flex; align-items: center; flex: 0 0 auto;
+  background: none; border: none; padding: 0; margin: 0;
+  cursor: pointer;
+  transition: transform 0.16s var(--ease-out), filter 0.18s;
+}
+.brand-logo-btn:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.brand-logo-btn:active { transform: scale(0.97); }
 
 .logo-mark {
   position: relative;
@@ -183,12 +191,13 @@ body {
   box-shadow: 0 0 22px -4px var(--accent-glow);
   pointer-events: none;
 }
-/* Responsive: keep a constant height + gap, let width follow the logo's
-   aspect ratio (square OR wide uploads look right and never crop). */
+/* Responsive: constant height + gap, width follows the logo's aspect ratio
+   (square OR wide uploads look right, never crop). No rounded edges — the
+   uploaded PNG/SVG (transparent) shows exactly as authored. */
 .logo-img {
-  height: 38px; width: auto; max-width: 132px;
-  border-radius: var(--r-3); object-fit: contain; flex: 0 0 auto;
-  filter: drop-shadow(0 0 14px var(--accent-glow));
+  height: 38px; width: auto; max-width: 150px;
+  border-radius: 0; object-fit: contain; flex: 0 0 auto;
+  filter: drop-shadow(0 0 12px var(--accent-glow));
 }
 
 .brand-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -363,8 +372,18 @@ body {
   background: #14141a;
   box-shadow: 0 0 0 3px var(--accent-tint), 0 0 26px -10px var(--accent-glow);
 }
-.dropdown-value { color: var(--text-3); font-weight: 500; }
+.dropdown-value {
+  display: inline-flex; align-items: center; gap: 9px; min-width: 0;
+  color: var(--text-3); font-weight: 500;
+}
 .dropdown-value.selected { color: var(--text); }
+
+/* Per-client logos (dropdown trigger + items) — all normalised to one height. */
+.client-logo {
+  height: 18px; width: auto; max-width: 62px;
+  object-fit: contain; flex: 0 0 auto;
+}
+.client-logo.white { filter: brightness(0) invert(1); }
 
 .chevron {
   color: var(--text-4);
@@ -395,6 +414,7 @@ body {
 
 .dropdown-item {
   position: relative;
+  display: flex; align-items: center; gap: 9px;
   padding: 9px 11px;
   border-radius: var(--r-1);
   cursor: pointer;
@@ -430,11 +450,10 @@ body {
 .seg-item:active { transform: scale(0.96); }
 .seg-item.active {
   color: #fff; font-weight: 700;
-  background: linear-gradient(180deg, var(--accent-bright), var(--accent) 58%, var(--accent-2));
+  background: linear-gradient(180deg, #ff6d30, #ee5414);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.34),
-    0 2px 12px var(--accent-glow),
-    0 0 18px -3px var(--accent-glow-2);
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
 /* ── PREVIEW CHIP ── */
@@ -465,81 +484,61 @@ body {
 }
 
 /* ============================================================
-   BUTTONS — primary actions glow like embers.
+   BUTTONS — minimal & premium. Flat accent surface; on hover a soft
+   colored glow blooms behind the button. No always-on animation/sheen.
    ============================================================ */
 .btn-primary {
   position: relative;
-  overflow: hidden;
   width: 100%;
   display: flex; align-items: center; justify-content: center; gap: var(--sp-2);
   padding: 12px 16px;
   border: none; border-radius: var(--r-3);
-  color: #fff; font-size: 13.5px; font-weight: 700;
-  letter-spacing: -0.1px;
+  color: #fff; font-size: 13px; font-weight: 600;
+  letter-spacing: 0.1px;
   cursor: pointer;
-  background: linear-gradient(180deg, var(--accent-bright) 0%, var(--accent) 50%, var(--accent-2) 100%);
+  background: linear-gradient(180deg, #ff6d30 0%, #ee5414 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.36),
-    inset 0 -2px 6px rgba(120, 30, 0, 0.36),
-    0 0 0 1px rgba(255, 92, 26, 0.45),
-    0 6px 22px -4px var(--accent-glow);
-  transition: transform 0.14s var(--spring), box-shadow 0.24s var(--ease), opacity 0.18s, filter 0.24s;
-  filter: drop-shadow(0 4px 14px var(--accent-glow));
-}
-.btn-primary:not(:disabled) { animation: ember 3.4s ease-in-out infinite; }
-@keyframes ember {
-  0%, 100% { filter: drop-shadow(0 4px 14px var(--accent-glow)); }
-  50%      { filter: drop-shadow(0 6px 22px var(--accent-glow-2)); }
-}
-/* glossy sheen sweep on hover */
-.btn-primary::after {
-  content: "";
-  position: absolute; top: 0; bottom: 0; left: -75%;
-  width: 55%;
-  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.32), transparent);
-  transform: skewX(-18deg);
-  transition: left 0.6s var(--ease-out);
-  pointer-events: none;
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.16),
+    0 1px 3px rgba(0, 0, 0, 0.45);
+  transition: transform 0.16s var(--ease-out), box-shadow 0.3s ease, background 0.2s;
 }
 .btn-primary:hover:not(:disabled) {
-  transform: translateY(-1.5px);
-  animation: none;
-  filter: drop-shadow(0 10px 30px var(--accent-glow-2));
+  transform: translateY(-1px);
+  background: linear-gradient(180deg, #ff7a40 0%, #f25917 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.44),
-    inset 0 -2px 6px rgba(120, 30, 0, 0.36),
-    0 0 0 1px rgba(255, 92, 26, 0.62),
-    0 10px 34px -4px var(--accent-glow-2);
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 2px 6px rgba(0, 0, 0, 0.4),
+    0 8px 26px -8px var(--accent-glow-2),
+    0 0 18px -2px var(--accent-glow);
 }
-.btn-primary:hover:not(:disabled)::after { left: 130%; }
 .btn-primary:active:not(:disabled) {
-  transform: translateY(0) scale(0.985);
-  animation: none;
-  filter: none;
-  box-shadow:
-    inset 0 2px 5px rgba(110, 30, 0, 0.5),
-    0 0 0 1px rgba(255, 92, 26, 0.5),
-    0 2px 10px var(--accent-glow);
+  transform: translateY(0) scale(0.99);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.28);
   transition-duration: 0.06s;
 }
 .btn-primary:disabled {
   cursor: not-allowed;
   background: var(--surface-2);
   color: var(--text-4);
-  animation: none;
-  filter: none;
   box-shadow: inset 0 0 0 1px var(--line);
 }
 .btn-text { position: relative; }
 .btn-ico {
   position: relative;
-  width: 26px; height: 26px; flex: 0 0 auto;
+  width: 24px; height: 24px; flex: 0 0 auto;
   display: flex; align-items: center; justify-content: center;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.2);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 .btn-primary:disabled .btn-ico { background: rgba(255, 255, 255, 0.04); box-shadow: none; }
+
+/* ember glow — used by the About hero logo */
+@keyframes ember {
+  0%, 100% { filter: drop-shadow(0 4px 14px var(--accent-glow)); }
+  50%      { filter: drop-shadow(0 6px 22px var(--accent-glow-2)); }
+}
 
 .btn-secondary {
   width: 100%;
@@ -645,6 +644,7 @@ body {
 .swatch-row { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 .swatch {
   width: 44px; height: 44px;
+  padding: 0; appearance: none; -webkit-appearance: none;
   border-radius: var(--r-3);
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 3px 10px rgba(0, 0, 0, 0.45);
@@ -656,6 +656,7 @@ body {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 10px 22px rgba(0, 0, 0, 0.6);
   filter: brightness(1.08);
 }
+.swatch:active { transform: scale(1.02); }
 
 /* ── ACCORDION ── */
 .accordion {
@@ -710,6 +711,15 @@ body {
   filter: drop-shadow(0 0 26px var(--accent-glow));
   animation: ember 3.8s ease-in-out infinite;
 }
+/* When a custom logo is uploaded, drop the boxed frame and show it cleanly. */
+.about-logo.has-img {
+  width: auto; max-width: 200px; height: 66px;
+  background: none; border: none; box-shadow: none; border-radius: 0;
+  overflow: visible;
+  animation: none;
+  filter: drop-shadow(0 0 22px var(--accent-glow));
+}
+.about-logo-img { height: 100%; width: auto; max-width: 200px; object-fit: contain; }
 .about-name {
   font-size: 21px; font-weight: 800; letter-spacing: -0.5px;
   background: linear-gradient(96deg, #ffffff, var(--accent-bright));
@@ -812,9 +822,17 @@ body {
 }
 .size-group { display: flex; flex-direction: column; gap: 3px; }
 .size-group-head {
+  display: flex; align-items: center; gap: var(--sp-2);
   font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
-  color: var(--text-4); padding: 2px 2px 4px;
+  color: var(--text-4); padding: 4px 2px 6px;
+  cursor: pointer;
+  transition: color 0.14s;
 }
+.size-group-head:hover { color: var(--text-3); }
+.size-group-head.checked { color: var(--accent-bright); }
+.size-group-head input { position: absolute; opacity: 0; pointer-events: none; }
+.check-box.sm { width: 15px; height: 15px; border-radius: 5px; }
+.check-box.sm svg { width: 10px; height: 10px; }
 .check-row {
   display: flex; align-items: center; gap: var(--sp-2);
   padding: 8px 10px; border-radius: var(--r-2);
