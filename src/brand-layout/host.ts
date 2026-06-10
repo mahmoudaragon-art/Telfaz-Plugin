@@ -284,11 +284,15 @@ async function writeTcPhotoshop(text: string, font: string, st: TcStyle, dir: "r
         { synchronousExecution: true } as any,
       );
 
-      // Position to anchor
+      // Position to anchor. Safe margin scales with the artboard: a % of the
+      // shorter side gives the same visual inset on Square / Vertical / FHD.
       const doc = ps.app.activeDocument;
       const layer = doc.activeLayers[0];
       const b = layer.bounds; // left, top, right, bottom (px)
-      const margin = st.marginPt * ((doc as any).resolution / 72);
+      const pct = st.safeMarginPct ?? 4;
+      const margin = pct
+        ? Math.round(Math.min(doc.width, doc.height) * (pct / 100))
+        : st.marginPt * ((doc as any).resolution / 72);
       const lw = b.right - b.left,
         lh = b.bottom - b.top;
       let tx: number, ty: number;
@@ -334,9 +338,12 @@ async function writeTcIllustrator(text: string, font: string, st: TcStyle, _dir:
   col.green = c.g;
   col.blue = c.b;
   tf.textRange.characterAttributes.fillColor = col;
-  // Anchor on active artboard
+  // Anchor on active artboard. Safe margin = % of the shorter artboard side.
   const ab = doc.artboards[doc.artboards.getActiveArtboardIndex()].artboardRect; // [l,t,r,b]
-  const m = st.marginPt;
+  const abW = Math.abs(ab[2] - ab[0]);
+  const abH = Math.abs(ab[1] - ab[3]);
+  const pct = st.safeMarginPct ?? 4;
+  const m = pct ? Math.round(Math.min(abW, abH) * (pct / 100)) : st.marginPt;
   const w = tf.width,
     h = tf.height;
   let x: number, y: number;

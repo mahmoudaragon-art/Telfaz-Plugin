@@ -71,6 +71,7 @@ export const baseConfig: Config = {
     color: "#000000",
     anchor: "bottom-center",
     marginPt: 36,
+    safeMarginPct: 4,
   },
   brands: [
     {

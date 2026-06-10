@@ -269,13 +269,15 @@ export const SettingsView: React.FC<Props> = ({ cfg, api, onLivePreview, onSave,
             </select>
           </div>
           <div className="field">
-            <label className="field-label">Margin (pt)</label>
+            <label className="field-label">Safe margin (%)</label>
             <input
               type="number"
               className="text-input"
-              value={draft.tcStyle.marginPt}
+              value={draft.tcStyle.safeMarginPct}
               onChange={(e) =>
-                patchTcStyle({ marginPt: parseFloat(e.target.value) || draft.tcStyle.marginPt })
+                patchTcStyle({
+                  safeMarginPct: parseFloat(e.target.value) || 0,
+                })
               }
             />
           </div>

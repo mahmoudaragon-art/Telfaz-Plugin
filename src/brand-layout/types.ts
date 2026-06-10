@@ -41,6 +41,8 @@ export interface TcStyle {
   color: string;
   anchor: string;
   marginPt: number;
+  /** Safe margin as a % of the artboard's shorter side (scales across sizes). */
+  safeMarginPct: number;
 }
 
 export interface About {
