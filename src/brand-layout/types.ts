@@ -46,6 +46,36 @@ export interface TcStyle {
 }
 
 /**
+ * A font run for the T&C text. `psName` must be the Photoshop PostScript font
+ * name (in PS: select the type, the character panel shows the family/style;
+ * the PostScript name is family + "-" + style with spaces removed).
+ */
+export interface TcFont {
+  psName: string;
+  sizePx: number;
+  color: string; // hex
+}
+
+/** Per-client T&C typography (per language) + the font used for Latin digits. */
+export interface TcClientStyle {
+  ar: TcFont;
+  en: TcFont;
+  /** Font for digits embedded in Arabic text (kept Latin even in AR). */
+  latin?: TcFont;
+}
+
+/** Everything the host needs to write a T&C text layer. */
+export interface TcWriteOptions {
+  text: string;
+  dir: "rtl" | "ltr";
+  anchor: string;
+  safeMarginPct: number;
+  font: TcFont;
+  latinFont?: TcFont;
+  layout?: TcLayoutRule;
+}
+
+/**
  * Per-client T&C placement rule.
  * - "bottom": write the T&C bottom-aligned inside the safe margin (NEO/default).
  * - "belowLayer": nudge `moveLayer` up and place the T&C beneath it, bottom-
@@ -86,6 +116,8 @@ export interface Config {
   tcStyle: TcStyle;
   /** Per-client T&C placement rules (client value → rule). Default is "bottom". */
   tcLayout: Record<string, TcLayoutRule>;
+  /** Per-client T&C typography (client value → fonts). Falls back to tcStyle. */
+  tcClientStyles: Record<string, TcClientStyle>;
   brands: Brand[];
   about: About;
   ui: Ui;

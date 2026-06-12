@@ -6,6 +6,8 @@ import {
   Selection,
   Ui,
   VerifyResult,
+  TcFont,
+  TcWriteOptions,
   baseConfig,
   buildBaseName,
   buildBaseNameForSize,
@@ -153,9 +155,12 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
         fails.push(sv);
         continue;
       }
+      // Artboard/doc name like "Social Media Square 1080X1080".
+      const catLabel = cfg.categories.find((c) => c.value === size.category)?.label || "";
+      const artboardName = `${catLabel} ${size.label} ${size.w}X${size.h}`.trim();
       setStatus(`Creating ${size.label} (${size.w}×${size.h}) …`, "busy");
       try {
-        await api.createArtboardAndPlace(base, size, cfg);
+        await api.createArtboardAndPlace(base, size, cfg, artboardName);
         ok++;
       } catch (e: any) {
         fails.push(`${sv}: ${e.message}`);
@@ -181,16 +186,48 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     }
   };
 
-  const handleWriteTc = async (text: string, dir: "rtl" | "ltr") => {
+  const handleWriteTc = async (text: string, dir: "rtl" | "ltr", anchor: string) => {
     const t = text.trim();
     if (!t) return setStatus("T&C text is empty", "err");
     setStatus("Writing T&C …", "busy");
     try {
-      const layout = (selection.client && cfg.tcLayout?.[selection.client]) || undefined;
-      await api.writeTc(t, cfg.tcStyle, selection.lang || "EN", dir, layout);
+      const client = selection.client || "";
+      const isAr = selection.lang === "AR";
+      const cs = cfg.tcClientStyles?.[client];
+      // Per-client font for this language, else fall back to the global tcStyle.
+      const fallback: TcFont = {
+        psName: isAr ? cfg.tcStyle.fontAR : cfg.tcStyle.fontEN,
+        sizePx: cfg.tcStyle.sizePt,
+        color: cfg.tcStyle.color,
+      };
+      const font = cs ? (isAr ? cs.ar : cs.en) : fallback;
+      const latinFont = isAr ? cs?.latin : undefined;
+      const layout = (client && cfg.tcLayout?.[client]) || undefined;
+      const opts: TcWriteOptions = {
+        text: t,
+        dir,
+        anchor,
+        safeMarginPct: cfg.tcStyle.safeMarginPct,
+        font,
+        latinFont,
+        layout,
+      };
+      await api.writeTc(opts);
       setStatus("T&C written", "ok");
     } catch (e: any) {
       setStatus("T&C failed: " + e.message, "err");
+    }
+  };
+
+  const handleUpdateTc = async (text: string) => {
+    const t = text.trim();
+    if (!t) return setStatus("T&C text is empty", "err");
+    setStatus("Updating T&C …", "busy");
+    try {
+      await api.updateTcText(t);
+      setStatus("T&C text updated", "ok");
+    } catch (e: any) {
+      setStatus("Update failed: " + e.message, "err");
     }
   };
 
@@ -291,6 +328,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
             onPlace={handlePlace}
             onCreateArtboards={handleCreateArtboards}
             onWriteTc={handleWriteTc}
+            onUpdateTc={handleUpdateTc}
           />
         )}
         {view === "brands" && (

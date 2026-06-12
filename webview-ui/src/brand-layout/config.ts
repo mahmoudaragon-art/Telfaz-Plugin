@@ -22,6 +22,10 @@ export type {
   SizeOption,
   Brand,
   TcStyle,
+  TcFont,
+  TcClientStyle,
+  TcWriteOptions,
+  TcLayoutRule,
   About,
   Ui,
   Config,
@@ -80,6 +84,15 @@ export const baseConfig: Config = {
       moveLayer: "@logo-left",
       alignTo: "@logo-right",
       gap: 24,
+    },
+  },
+  // Per-client T&C typography. psName must be the Photoshop PostScript name —
+  // verify these in Photoshop and adjust if a run shows a fallback font.
+  tcClientStyles: {
+    NEO: {
+      ar: { psName: "RisalaVF-Medium", sizePx: 14, color: "#FFFFFF" },
+      en: { psName: "SangBleuSunrise-Regular", sizePx: 14, color: "#FFFFFF" },
+      latin: { psName: "SangBleuSunrise-Regular", sizePx: 14, color: "#FFFFFF" },
     },
   },
   brands: [

@@ -381,6 +381,7 @@ body {
 /* Text fills the row so the trailing logo is pushed to the right. */
 .dropdown-text {
   flex: 1 1 auto; min-width: 0;
+  text-align: left;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
@@ -389,7 +390,7 @@ body {
 .client-logo {
   height: 16px; width: auto; max-width: 46px;
   object-fit: contain; flex: 0 0 auto;
-  margin-left: 6px;
+  margin-left: auto;
 }
 .client-logo.white { filter: brightness(0) invert(1); }
 
@@ -927,6 +928,36 @@ body {
 }
 .dir-toggle:hover { background: var(--accent-tint-2); box-shadow: 0 0 14px -5px var(--accent-glow); }
 .dir-toggle svg { width: 13px; height: 11px; }
+
+/* ── T&C ANCHOR (3×3) + actions ── */
+.tc-anchor { display: flex; align-items: center; gap: var(--sp-3); }
+.anchor-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+  width: 90px; flex: 0 0 auto;
+}
+.anchor-cell {
+  aspect-ratio: 1 / 1;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.14s, background 0.14s;
+}
+.anchor-cell:hover { border-color: var(--line-strong); }
+.anchor-cell.active { border-color: var(--accent); background: var(--accent-tint); }
+.anchor-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--text-4);
+  transition: background 0.14s, box-shadow 0.14s;
+}
+.anchor-cell.active .anchor-dot {
+  background: var(--accent-bright);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+.tc-actions { display: flex; gap: var(--sp-2); }
+.tc-actions .btn-secondary { flex: 1; }
+.tc-actions .btn-ghost { flex: 0 0 auto; }
 
 /* ── ERROR BOUNDARY FALLBACK ── */
 .crash {

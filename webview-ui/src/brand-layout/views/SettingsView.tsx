@@ -254,34 +254,16 @@ export const SettingsView: React.FC<Props> = ({ cfg, api, onLivePreview, onSave,
             />
           </div>
         </div>
-        <div className="row2">
-          <div className="field">
-            <label className="field-label">Anchor</label>
-            <select
-              className="text-input"
-              value={draft.tcStyle.anchor}
-              onChange={(e) => patchTcStyle({ anchor: e.target.value })}
-            >
-              <option value="bottom-center">Bottom center</option>
-              <option value="bottom-left">Bottom left</option>
-              <option value="bottom-right">Bottom right</option>
-              <option value="top-center">Top center</option>
-            </select>
-          </div>
-          <div className="field">
-            <label className="field-label">Safe margin (%)</label>
-            <input
-              type="number"
-              className="text-input"
-              value={draft.tcStyle.safeMarginPct}
-              onChange={(e) =>
-                patchTcStyle({
-                  safeMarginPct: parseFloat(e.target.value) || 0,
-                })
-              }
-            />
-          </div>
+        <div className="field">
+          <label className="field-label">Safe margin (%)</label>
+          <input
+            type="number"
+            className="text-input"
+            value={draft.tcStyle.safeMarginPct}
+            onChange={(e) => patchTcStyle({ safeMarginPct: parseFloat(e.target.value) || 0 })}
+          />
         </div>
+        <div className="folder-hint">Anchor is chosen per-write in the Place tab.</div>
       </Accordion>
 
       {/* ── Brands ── */}

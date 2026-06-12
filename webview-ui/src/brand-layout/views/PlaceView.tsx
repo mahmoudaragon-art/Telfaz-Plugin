@@ -29,10 +29,23 @@ interface Props {
   onCloseVerify: () => void;
   onPlace: () => void;
   onCreateArtboards: (sizeValues: string[]) => void;
-  onWriteTc: (text: string, dir: "rtl" | "ltr") => void;
+  onWriteTc: (text: string, dir: "rtl" | "ltr", anchor: string) => void;
+  onUpdateTc: (text: string) => void;
 }
 
 type Mode = "single" | "multiple";
+
+const ANCHORS = [
+  "top-left",
+  "top-center",
+  "top-right",
+  "middle-left",
+  "center",
+  "middle-right",
+  "bottom-left",
+  "bottom-center",
+  "bottom-right",
+];
 
 export const PlaceView: React.FC<Props> = ({
   cfg,
@@ -47,6 +60,7 @@ export const PlaceView: React.FC<Props> = ({
   onPlace,
   onCreateArtboards,
   onWriteTc,
+  onUpdateTc,
 }) => {
   const connected = !!folderPath;
   const base = buildBaseName(cfg, selection);
@@ -105,6 +119,7 @@ export const PlaceView: React.FC<Props> = ({
   const showTc = selection.tc === "TC" && !!selection.lang;
   const [tcText, setTcText] = useState("");
   const [dir, setDir] = useState<"rtl" | "ltr">(selection.lang === "AR" ? "rtl" : "ltr");
+  const [anchor, setAnchor] = useState("bottom-center");
   useEffect(() => {
     setDir(selection.lang === "AR" ? "rtl" : "ltr");
   }, [selection.lang]);
@@ -316,10 +331,30 @@ export const PlaceView: React.FC<Props> = ({
             value={tcText}
             onChange={(e) => onTcChange(e.target.value)}
           />
-          <button className="btn-secondary" onClick={() => onWriteTc(tcText, dir)}>
-            <PencilIcon />
-            Write T&amp;C on artboard
-          </button>
+          <div className="tc-anchor">
+            <span className="field-label">Anchor</span>
+            <div className="anchor-grid">
+              {ANCHORS.map((a) => (
+                <button
+                  key={a}
+                  className={"anchor-cell" + (anchor === a ? " active" : "")}
+                  onClick={() => setAnchor(a)}
+                  title={a.replace("-", " ")}
+                >
+                  <span className="anchor-dot" />
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="tc-actions">
+            <button className="btn-secondary" onClick={() => onWriteTc(tcText, dir, anchor)}>
+              <PencilIcon />
+              Write T&amp;C
+            </button>
+            <button className="btn-ghost" onClick={() => onUpdateTc(tcText)}>
+              Update text
+            </button>
+          </div>
         </div>
       )}
 

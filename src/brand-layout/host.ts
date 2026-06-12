@@ -7,8 +7,8 @@ import { uxp, photoshop, illustrator } from "../globals";
 import type {
   Brand,
   Config,
-  TcStyle,
-  TcLayoutRule,
+  TcFont,
+  TcWriteOptions,
   FolderInfo,
   VerifyResult,
   SizeOption,
@@ -185,15 +185,17 @@ export async function createArtboardAndPlace(
   base: string,
   size: SizeOption,
   cfg: Config,
+  artboardName?: string,
 ): Promise<string> {
   if (!currentFolder) throw new Error("Connect the source folder first");
   const entry = await resolveAssetEntry(currentFolder, base, cfg);
   if (!entry) throw new Error("Not found: " + base + ".(ai|psd)");
+  const name = artboardName || base;
   if (HOST === "Photoshop") {
-    await createDocPhotoshop(size, base);
+    await createDocPhotoshop(size, name);
     await placeLinkedPhotoshop(entry);
   } else if (HOST === "Illustrator") {
-    await createDocIllustrator(size, base);
+    await createDocIllustrator(size, name);
     await placeLinkedIllustrator(entry);
   } else {
     throw new Error("Unsupported host: " + HOST);
@@ -234,19 +236,6 @@ async function createDocIllustrator(size: SizeOption, name: string) {
 
 /* ---------------- T&C writer ---------------- */
 
-export async function writeTc(
-  text: string,
-  style: TcStyle,
-  lang: string,
-  dir: "rtl" | "ltr" = lang === "AR" ? "rtl" : "ltr",
-  layout?: TcLayoutRule,
-) {
-  const font = lang === "AR" ? style.fontAR : style.fontEN;
-  if (HOST === "Photoshop") await writeTcPhotoshop(text, font, style, dir, layout);
-  else if (HOST === "Illustrator") await writeTcIllustrator(text, font, style, dir);
-  else throw new Error("Unsupported host: " + HOST);
-}
-
 /** Find a layer (recursing into groups) by exact name. */
 function findLayerByName(layers: any, name: string): any {
   for (const ly of layers) {
@@ -259,17 +248,78 @@ function findLayerByName(layers: any, name: string): any {
   return null;
 }
 
-async function writeTcPhotoshop(
-  text: string,
-  font: string,
-  st: TcStyle,
-  dir: "rtl" | "ltr",
-  layout?: TcLayoutRule,
-) {
+/** Find the first layer whose name starts with `prefix`. */
+function findLayerByPrefix(layers: any, prefix: string): any {
+  for (const ly of layers) {
+    if (typeof ly.name === "string" && ly.name.indexOf(prefix) === 0) return ly;
+    if (ly.layers && ly.layers.length) {
+      const hit = findLayerByPrefix(ly.layers, prefix);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+const isDigit = (ch: string) =>
+  (ch >= "0" && ch <= "9") || (ch >= "٠" && ch <= "٩");
+
+const psColor = (hex: string) => {
+  const c = hexToRgb(hex);
+  return { _obj: "RGBColor", red: c.r, grain: c.g, blue: c.b };
+};
+
+const psTextStyle = (f: TcFont) => ({
+  _obj: "textStyle",
+  fontPostScriptName: f.psName,
+  size: { _unit: "pointsUnit", _value: f.sizePx },
+  color: psColor(f.color),
+});
+
+/** Split into runs so digit runs use the Latin font (Latin numerals in AR). */
+function buildTextStyleRanges(text: string, main: TcFont, latin?: TcFont) {
+  const ranges: any[] = [];
+  let i = 0;
+  while (i < text.length) {
+    const digit = isDigit(text[i]);
+    let j = i + 1;
+    while (j < text.length && isDigit(text[j]) === digit) j++;
+    const f = digit && latin ? latin : main;
+    ranges.push({ _obj: "textStyleRange", from: i, to: j, textStyle: psTextStyle(f) });
+    i = j;
+  }
+  return ranges.length
+    ? ranges
+    : [{ _obj: "textStyleRange", from: 0, to: 0, textStyle: psTextStyle(main) }];
+}
+
+export async function writeTc(opts: TcWriteOptions) {
+  if (HOST === "Photoshop") await writeTcPhotoshop(opts);
+  else if (HOST === "Illustrator") await writeTcIllustrator(opts);
+  else throw new Error("Unsupported host: " + HOST);
+}
+
+/** Update ONLY the text of the existing "T&C …" layer (keeps font/size/colour/position). */
+export async function updateTcText(text: string) {
+  if (HOST !== "Photoshop") throw new Error("Update is Photoshop-only for now");
   const ps = photoshop;
-  const c = hexToRgb(st.color);
   await ps.core.executeAsModal(
     async () => {
+      const doc = ps.app.activeDocument;
+      const tcLayer = findLayerByPrefix(doc.layers, "T&C ");
+      if (!tcLayer) throw new Error('No "T&C …" layer on this document');
+      tcLayer.textItem.contents = text;
+    },
+    { commandName: "Update T&C" },
+  );
+}
+
+async function writeTcPhotoshop(opts: TcWriteOptions) {
+  const ps = photoshop;
+  const { text, dir, anchor, safeMarginPct, font, latinFont, layout } = opts;
+  await ps.core.executeAsModal(
+    async () => {
+      const doc = ps.app.activeDocument;
+      const layerName = "T&C " + doc.name;
       await ps.action.batchPlay(
         [
           {
@@ -277,20 +327,9 @@ async function writeTcPhotoshop(
             _target: [{ _ref: "textLayer" }],
             using: {
               _obj: "textLayer",
+              name: layerName,
               textKey: text,
-              textStyleRange: [
-                {
-                  _obj: "textStyleRange",
-                  from: 0,
-                  to: text.length,
-                  textStyle: {
-                    _obj: "textStyle",
-                    fontPostScriptName: font,
-                    size: { _unit: "pointsUnit", _value: st.sizePt },
-                    color: { _obj: "RGBColor", red: c.r, grain: c.g, blue: c.b },
-                  },
-                },
-              ],
+              textStyleRange: buildTextStyleRanges(text, font, latinFont),
               paragraphStyle: {
                 _obj: "paragraphStyle",
                 direction: {
@@ -304,8 +343,12 @@ async function writeTcPhotoshop(
         { synchronousExecution: true } as any,
       );
 
-      const doc = ps.app.activeDocument;
       const layer = doc.activeLayers[0];
+      try {
+        layer.name = layerName; // so the plugin can find/update it later
+      } catch {
+        /* ignore */
+      }
       const b = layer.bounds; // left, top, right, bottom (px)
 
       const moveText = async (tx: number, ty: number) => {
@@ -325,9 +368,8 @@ async function writeTcPhotoshop(
         );
       };
 
-      // ── belowLayer (e.g. Budget): nudge a named logo up, drop the T&C under
-      //    it, bottom-aligned to another named logo. Falls back to bottom-anchor
-      //    if the named layers aren't present.
+      // belowLayer (Budget): nudge a named logo up, drop the T&C under it,
+      // bottom-aligned to another named logo. Falls back to anchor placement.
       let placed = false;
       if (layout && layout.mode === "belowLayer" && layout.moveLayer && layout.alignTo) {
         try {
@@ -337,30 +379,25 @@ async function writeTcPhotoshop(
             const gap = layout.gap ?? 24;
             const L = leftL.bounds;
             const R = rightL.bounds;
-            // align T&C left edge under the left logo, bottom edge to right logo
             await moveText(L.left - b.left, R.bottom - b.bottom);
-            // re-read the T&C bounds after the move, then lift the left logo above it
             const t2 = doc.activeLayers[0].bounds;
             leftL.translate(0, t2.top - gap - L.bottom);
             placed = true;
           }
         } catch (e) {
-          console.warn("belowLayer T&C failed, using bottom anchor", e);
+          console.warn("belowLayer T&C failed, using anchor", e);
         }
       }
 
-      // ── bottom anchor (NEO/default). Safe margin = % of the shorter side.
+      // anchored placement (3×3 anchor). Safe margin = % of the shorter side.
       if (!placed) {
-        const pct = st.safeMarginPct ?? 4;
-        const margin = pct
-          ? Math.round(Math.min(doc.width, doc.height) * (pct / 100))
-          : st.marginPt * ((doc as any).resolution / 72);
-        const lw = b.right - b.left,
-          lh = b.bottom - b.top;
+        const margin = Math.round(Math.min(doc.width, doc.height) * ((safeMarginPct ?? 4) / 100));
+        const lw = b.right - b.left;
+        const lh = b.bottom - b.top;
         let tx: number, ty: number;
-        const anchor = st.anchor;
-        if (anchor.indexOf("bottom") === 0) ty = doc.height - margin - lh - b.top;
-        else ty = margin - b.top;
+        if (anchor.indexOf("bottom") > -1) ty = doc.height - margin - lh - b.top;
+        else if (anchor.indexOf("top") > -1) ty = margin - b.top;
+        else ty = (doc.height - lh) / 2 - b.top;
         if (anchor.indexOf("left") > -1) tx = margin - b.left;
         else if (anchor.indexOf("right") > -1) tx = doc.width - margin - lw - b.left;
         else tx = (doc.width - lw) / 2 - b.left;
@@ -371,37 +408,42 @@ async function writeTcPhotoshop(
   );
 }
 
-async function writeTcIllustrator(text: string, font: string, st: TcStyle, _dir: "rtl" | "ltr") {
+async function writeTcIllustrator(opts: TcWriteOptions) {
   const ill = illustrator;
   const app = ill.app;
   if (!app.documents.length) throw new Error("Open a document first");
   const doc = app.activeDocument;
+  const { text, anchor, safeMarginPct, font } = opts;
   const tf = doc.textFrames.add();
   tf.contents = text;
   try {
-    tf.textRange.characterAttributes.textFont = app.textFonts.getByName(font);
+    tf.textRange.characterAttributes.textFont = app.textFonts.getByName(font.psName);
   } catch {}
-  tf.textRange.characterAttributes.size = st.sizePt;
-  const c = hexToRgb(st.color);
+  tf.textRange.characterAttributes.size = font.sizePx;
+  const c = hexToRgb(font.color);
   const col = new ill.RGBColor();
   col.red = c.r;
   col.green = c.g;
   col.blue = c.b;
   tf.textRange.characterAttributes.fillColor = col;
-  // Anchor on active artboard. Safe margin = % of the shorter artboard side.
+  try {
+    tf.name = "T&C " + doc.name;
+  } catch {
+    /* ignore */
+  }
   const ab = doc.artboards[doc.artboards.getActiveArtboardIndex()].artboardRect; // [l,t,r,b]
   const abW = Math.abs(ab[2] - ab[0]);
   const abH = Math.abs(ab[1] - ab[3]);
-  const pct = st.safeMarginPct ?? 4;
-  const m = pct ? Math.round(Math.min(abW, abH) * (pct / 100)) : st.marginPt;
-  const w = tf.width,
-    h = tf.height;
+  const m = Math.round(Math.min(abW, abH) * ((safeMarginPct ?? 4) / 100));
+  const w = tf.width;
+  const h = tf.height;
   let x: number, y: number;
-  if (st.anchor.indexOf("left") > -1) x = ab[0] + m;
-  else if (st.anchor.indexOf("right") > -1) x = ab[2] - m - w;
+  if (anchor.indexOf("left") > -1) x = ab[0] + m;
+  else if (anchor.indexOf("right") > -1) x = ab[2] - m - w;
   else x = (ab[0] + ab[2]) / 2 - w / 2;
-  if (st.anchor.indexOf("bottom") === 0) y = ab[3] + m + h;
-  else y = ab[1] - m;
+  if (anchor.indexOf("bottom") > -1) y = ab[3] + m + h;
+  else if (anchor.indexOf("top") > -1) y = ab[1] - m;
+  else y = (ab[1] + ab[3]) / 2 + h / 2;
   tf.position = [x, y];
 }
 
