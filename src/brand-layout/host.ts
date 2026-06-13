@@ -144,15 +144,31 @@ async function placeLinkedPhotoshop(entry: any) {
         [
           {
             _obj: "placeEvent",
+            // Crop the placed .ai/.pdf to its Media Box (full page), not the art box.
+            as: {
+              _obj: "PDFGenericFormat",
+              selection: { _enum: "pdfSelection", _value: "page" },
+              pageNumber: 1,
+              crop: { _enum: "cropTo", _value: "mediaBox" },
+              suppressWarnings: false,
+              antiAlias: true,
+              clippingPath: true,
+            },
             null: { _path: token, _kind: "local" },
             linked: true,
             freeTransformCenterState: { _enum: "quadCenterState", _value: "QCSAverage" },
+            offset: {
+              _obj: "offset",
+              horizontal: { _unit: "pixelsUnit", _value: 0 },
+              vertical: { _unit: "pixelsUnit", _value: 0 },
+            },
+            antiAlias: true,
             _options: { dialogOptions: "dontDisplay" },
           },
         ],
         { synchronousExecution: true } as any,
       );
-      // Center the placed layer in the document.
+      // Center the placed layer in the document (belt-and-suspenders).
       try {
         const layer = doc.activeLayers[0];
         const b = layer.bounds;
