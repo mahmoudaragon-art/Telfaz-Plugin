@@ -314,10 +314,13 @@ export async function createArtboardsDoc(
           {},
         );
         let abId = 0;
+        let abRect: { left: number; top: number; right: number; bottom: number } | null = null;
         try {
           const ab = doc.activeLayers[0];
           ab.name = it.artboardName;
           abId = ab.id;
+          const bb = ab.bounds; // the artboard frame (empty so far)
+          abRect = { left: bb.left, top: bb.top, right: bb.right, bottom: bb.bottom };
         } catch {
           /* ignore */
         }
@@ -366,6 +369,21 @@ export async function createArtboardsDoc(
           ],
           { synchronousExecution: true } as any,
         );
+
+        // Center the placed asset on the artboard's ACTUAL frame (deterministic;
+        // a no-op when the place already centered it, but fixes tall artboards).
+        if (abRect) {
+          try {
+            const layer = doc.activeLayers[0];
+            const b = layer.bounds;
+            layer.translate(
+              (abRect.left + abRect.right) / 2 - (b.left + b.right) / 2,
+              (abRect.top + abRect.bottom) / 2 - (b.top + b.bottom) / 2,
+            );
+          } catch {
+            /* ignore */
+          }
+        }
         x += w + gap;
       }
     },
@@ -467,174 +485,167 @@ export async function updateTcText(
   );
 }
 
-async function writeTcPhotoshop(opts: TcWriteOptions) {
-  const ps = photoshop;
-  const { dir, anchor, marginXPx, marginYPx, font, latinFont, layout } = opts;
-  const text = toPsText(opts.text);
-  await ps.core.executeAsModal(
-    async () => {
-      const doc = ps.app.activeDocument;
-      const layerName = "T&C " + (opts.artboardName || doc.name);
-      // points → pixels depends on the doc resolution; convert so px is honoured.
-      const resFactor = 72 / ((doc as any).resolution || 72);
-      const style = (f: TcFont, withFont: boolean) => {
-        const s: any = {
-          _obj: "textStyle",
-          size: { _unit: "pointsUnit", _value: f.sizePx * resFactor },
-          autoLeading: false,
-          leading: { _unit: "pointsUnit", _value: (f.leadingPx ?? f.sizePx) * resFactor },
-          color: psColor(f.color),
-        };
-        if (withFont) Object.assign(s, psFontKeys(f));
-        return s;
-      };
+/** Detect the artboards in a document (top-level group layers). */
+function getArtboards(doc: any): any[] {
+  try {
+    return (doc.layers as any[]).filter((l) => l && l.layers !== undefined);
+  } catch {
+    return [];
+  }
+}
 
-      // 1) Create with size + colour + leading only (no font, no paragraph
-      //    style — alignment/direction are applied separately below via the
-      //    proven override-feature form).
+/** Create + style + direction + position ONE T&C text layer relative to `rect`. */
+async function writeOneTcPS(
+  doc: any,
+  rect: { left: number; top: number; right: number; bottom: number },
+  layerName: string,
+  opts: TcWriteOptions,
+) {
+  const ps = photoshop;
+  const { dir, anchor, marginXPx, marginYPx, font, latinFont } = opts;
+  const text = toPsText(opts.text);
+  const resFactor = 72 / ((doc as any).resolution || 72);
+  const style = (f: TcFont, withFont: boolean) => {
+    const s: any = {
+      _obj: "textStyle",
+      size: { _unit: "pointsUnit", _value: f.sizePx * resFactor },
+      autoLeading: false,
+      leading: { _unit: "pointsUnit", _value: (f.leadingPx ?? f.sizePx) * resFactor },
+      color: psColor(f.color),
+    };
+    if (withFont) Object.assign(s, psFontKeys(f));
+    return s;
+  };
+
+  // 1) Create text (size + colour + leading), named.
+  await ps.action.batchPlay(
+    [
+      {
+        _obj: "make",
+        _target: [{ _ref: "textLayer" }],
+        using: {
+          _obj: "textLayer",
+          name: layerName,
+          textKey: text,
+          textStyleRange: [
+            { _obj: "textStyleRange", from: 0, to: text.length, textStyle: style(font, false) },
+          ],
+        },
+      },
+    ],
+    { synchronousExecution: true } as any,
+  );
+  const layer = doc.activeLayers[0];
+  try {
+    layer.name = layerName;
+  } catch {
+    /* ignore */
+  }
+
+  // 2) Apply the font (+ reassert size/colour/leading so colour can't reset).
+  const applyRun = async (from: number, to: number, f: TcFont) => {
+    try {
       await ps.action.batchPlay(
         [
           {
-            _obj: "make",
-            _target: [{ _ref: "textLayer" }],
-            using: {
+            _obj: "set",
+            _target: [{ _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" }],
+            to: {
               _obj: "textLayer",
-              name: layerName,
-              textKey: text,
-              textStyleRange: [
-                { _obj: "textStyleRange", from: 0, to: text.length, textStyle: style(font, false) },
-              ],
+              textStyleRange: [{ _obj: "textStyleRange", from, to, textStyle: style(f, true) }],
             },
           },
         ],
         { synchronousExecution: true } as any,
       );
+    } catch (e) {
+      console.warn("T&C font not applied:", f.family || f.psName, e);
+    }
+  };
+  await applyRun(0, text.length, font);
+  if (latinFont) {
+    let i = 0;
+    while (i < text.length) {
+      const d = isDigit(text[i]);
+      let j = i + 1;
+      while (j < text.length && isDigit(text[j]) === d) j++;
+      if (d) await applyRun(i, j, latinFont);
+      i = j;
+    }
+  }
 
-      const layer = doc.activeLayers[0];
-      try {
-        layer.name = layerName;
-      } catch {
-        /* ignore */
-      }
-
-      // 2) Apply the font AND reassert size/colour/leading (so a font "set"
-      //    can't silently reset colour to black).
-      const applyRun = async (from: number, to: number, f: TcFont) => {
-        try {
-          await ps.action.batchPlay(
-            [
-              {
-                _obj: "set",
-                _target: [{ _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" }],
-                to: {
-                  _obj: "textLayer",
-                  textStyleRange: [
-                    { _obj: "textStyleRange", from, to, textStyle: style(f, true) },
-                  ],
-                },
-              },
-            ],
-            { synchronousExecution: true } as any,
-          );
-        } catch (e) {
-          console.warn("T&C font not applied:", f.family || f.psName, e);
-        }
-      };
-      await applyRun(0, text.length, font);
-      if (latinFont) {
-        let i = 0;
-        while (i < text.length) {
-          const d = isDigit(text[i]);
-          let j = i + 1;
-          while (j < text.length && isDigit(text[j]) === d) j++;
-          if (d) await applyRun(i, j, latinFont);
-          i = j;
-        }
-      }
-
-      // Alignment + paragraph direction. Both recorded via Alchemist: the
-      // working form is set paragraphStyle PROPERTY with a textOverrideFeatureName
-      // flag (808464433 = align, 808466481 = direction). Best-effort each.
-      const paragraphTarget = [
-        { _ref: "property", _property: "paragraphStyle" },
-        { _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" },
-      ];
-      // Direction first…
-      try {
-        await ps.action.batchPlay(
-          [
-            {
-              _obj: "set",
-              _target: paragraphTarget,
-              to: {
-                _obj: "paragraphStyle",
-                textOverrideFeatureName: 808466481,
-                directionType: {
-                  _enum: "directionType",
-                  _value: dir === "rtl" ? "dirRightToLeft" : "dirLeftToRight",
-                },
-              },
-              _options: { dialogOptions: "dontDisplay" },
-            },
+  // 3) Paragraph direction (recorded override-feature form).
+  try {
+    await ps.action.batchPlay(
+      [
+        {
+          _obj: "set",
+          _target: [
+            { _ref: "property", _property: "paragraphStyle" },
+            { _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" },
           ],
-          {} as any,
-        );
-      } catch (e) {
-        console.warn("paragraph direction not applied", e);
-      }
-
-      // 3) Position. Fixed safe margin; anchored to the far edges so the block
-      //    never exceeds the bottom/right and grows upward as lines are added.
-      const b = layer.bounds;
-      const moveText = async (tx: number, ty: number) => {
-        await ps.action.batchPlay(
-          [
-            {
-              _obj: "move",
-              _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }],
-              to: {
-                _obj: "offset",
-                horizontal: { _unit: "pixelsUnit", _value: tx },
-                vertical: { _unit: "pixelsUnit", _value: ty },
-              },
+          to: {
+            _obj: "paragraphStyle",
+            textOverrideFeatureName: 808466481,
+            directionType: {
+              _enum: "directionType",
+              _value: dir === "rtl" ? "dirRightToLeft" : "dirLeftToRight",
             },
-          ],
-          { synchronousExecution: true } as any,
-        );
-      };
+          },
+          _options: { dialogOptions: "dontDisplay" },
+        },
+      ],
+      {} as any,
+    );
+  } catch (e) {
+    console.warn("paragraph direction not applied", e);
+  }
 
-      let placed = false;
-      if (layout && layout.mode === "belowLayer" && layout.moveLayer && layout.alignTo) {
-        try {
-          const leftL = findLayerByName(doc.layers, layout.moveLayer);
-          const rightL = findLayerByName(doc.layers, layout.alignTo);
-          if (leftL && rightL) {
-            const gap = layout.gap ?? 24;
-            const L = leftL.bounds;
-            const R = rightL.bounds;
-            await moveText(L.left - b.left, R.bottom - b.bottom);
-            const t2 = doc.activeLayers[0].bounds;
-            leftL.translate(0, t2.top - gap - L.bottom);
-            placed = true;
+  // 4) Position within `rect` (the artboard or the whole doc), safe margins.
+  const b = layer.bounds;
+  const mx = marginXPx ?? 70;
+  const my = marginYPx ?? 80;
+  const lw = b.right - b.left;
+  const lh = b.bottom - b.top;
+  let tx: number, ty: number;
+  if (anchor.indexOf("bottom") > -1) ty = rect.bottom - my - lh - b.top;
+  else if (anchor.indexOf("top") > -1) ty = rect.top + my - b.top;
+  else ty = (rect.top + rect.bottom - lh) / 2 - b.top;
+  if (anchor.indexOf("right") > -1) tx = rect.right - mx - lw - b.left;
+  else if (anchor.indexOf("left") > -1) tx = rect.left + mx - b.left;
+  else tx = (rect.left + rect.right - lw) / 2 - b.left;
+  try {
+    layer.translate(tx, ty);
+  } catch {
+    /* ignore */
+  }
+}
+
+async function writeTcPhotoshop(opts: TcWriteOptions) {
+  const ps = photoshop;
+  await ps.core.executeAsModal(
+    async () => {
+      const doc = ps.app.activeDocument;
+      const artboards = getArtboards(doc);
+      if (artboards.length) {
+        // A T&C in EVERY artboard, positioned within each artboard's own bounds.
+        for (const ab of artboards) {
+          const bb = ab.bounds;
+          const rect = { left: bb.left, top: bb.top, right: bb.right, bottom: bb.bottom };
+          // Select the artboard so the new text layer belongs to it.
+          try {
+            await ps.action.batchPlay(
+              [{ _obj: "select", _target: [{ _ref: "layer", _id: ab.id }], makeVisible: false }],
+              {},
+            );
+          } catch {
+            /* ignore */
           }
-        } catch (e) {
-          console.warn("belowLayer T&C failed, using anchor", e);
+          await writeOneTcPS(doc, rect, "T&C " + ab.name, opts);
         }
-      }
-
-      if (!placed) {
-        const mx = marginXPx ?? 70; // left / right
-        const my = marginYPx ?? 80; // top / bottom
-        const lw = b.right - b.left;
-        const lh = b.bottom - b.top;
-        let tx: number, ty: number;
-        if (anchor.indexOf("bottom") > -1) ty = doc.height - my - lh - b.top;
-        else if (anchor.indexOf("top") > -1) ty = my - b.top;
-        else ty = (doc.height - lh) / 2 - b.top;
-        if (anchor.indexOf("right") > -1) tx = doc.width - mx - lw - b.left;
-        else if (anchor.indexOf("left") > -1) tx = mx - b.left;
-        else tx = (doc.width - lw) / 2 - b.left;
-        await moveText(tx, ty);
+      } else {
+        const rect = { left: 0, top: 0, right: doc.width, bottom: doc.height };
+        await writeOneTcPS(doc, rect, "T&C " + (opts.artboardName || doc.name), opts);
       }
     },
     { commandName: "Write T&C" },
