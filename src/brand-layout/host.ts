@@ -459,18 +459,36 @@ export async function adaptDesignToSizes(
       const focal = layerBounds(focalL);
       const safe = safeL ? layerBounds(safeL) : null;
 
+      // Capture the group IDs now (the DOM tree is unreliable once an artboard is
+      // made), and hide the guide rects in the master so duplicates never show
+      // them. Visibility is restored at the end; copies keep whatever state they
+      // were duplicated with, so this doesn't affect already-built artboards.
+      const visualId: number = visualG.id;
+      const textId: number | null = textG ? textG.id : null;
+      try {
+        focalL.visible = false;
+      } catch {
+        /* ignore */
+      }
+      try {
+        if (safeL) safeL.visible = false;
+      } catch {
+        /* ignore */
+      }
+
       const anchor = ps.constants.AnchorPosition.MIDDLECENTER;
 
-      // Duplicate a group, hide its guide rect, convert to a Smart Object.
-      const dupToSmartObject = async (group: any, guideRe: RegExp) => {
-        const dup = await group.duplicate();
-        try {
-          for (const k of dup.layers as any[]) if (guideRe.test(k.name)) k.visible = false;
-        } catch {
-          /* ignore */
-        }
+      // Duplicate a group BY ID (batchPlay, no DOM lookup) and convert to a
+      // Smart Object so it scales/moves as one clean unit.
+      const dupToSmartObject = async (groupId: number) => {
         await ps.action.batchPlay(
-          [{ _obj: "select", _target: [{ _ref: "layer", _id: dup.id }], makeVisible: false }],
+          [
+            {
+              _obj: "duplicate",
+              _target: [{ _ref: "layer", _id: groupId }],
+              _options: { dialogOptions: "dontDisplay" },
+            },
+          ],
           {},
         );
         await ps.action.batchPlay([{ _obj: "newPlacedLayer" }], {});
@@ -498,12 +516,8 @@ export async function adaptDesignToSizes(
         const ay = rowCy - H / 2;
         x += W + gap;
         try {
-          const vG = findGroup("visual");
-          if (!vG) throw new Error("lost Visual group");
-          const tG = findGroup("text");
-
           // --- Visual: cover-fit, keep `focal` centred in the frame ---
-          const vso = await dupToSmartObject(vG, /focal/i);
+          const vso = await dupToSmartObject(visualId);
           {
             const v = layerBounds(vso);
             const Cx = (v.left + v.right) / 2;
@@ -524,8 +538,8 @@ export async function adaptDesignToSizes(
 
           // --- Text: scale-to-fit, map `safe` to the same relative spot ---
           let tsoId = 0;
-          if (tG && safe) {
-            const tso = await dupToSmartObject(tG, /safe/i);
+          if (textId && safe) {
+            const tso = await dupToSmartObject(textId);
             tsoId = tso.id;
             const t = layerBounds(tso);
             const Cx = (t.left + t.right) / 2;
@@ -579,6 +593,18 @@ export async function adaptDesignToSizes(
             (e && e.message) || (typeof e === "string" ? e : JSON.stringify(e)) || "unknown";
           failed.push(`${size.label}: ${msg}`);
         }
+      }
+
+      // Restore the master's guide rects (best-effort; refs may be stale).
+      try {
+        focalL.visible = true;
+      } catch {
+        /* ignore */
+      }
+      try {
+        if (safeL) safeL.visible = true;
+      } catch {
+        /* ignore */
       }
     },
     { commandName: "Adapt design to sizes" },
