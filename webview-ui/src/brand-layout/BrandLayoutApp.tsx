@@ -203,11 +203,20 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
       const font = cs ? (isAr ? cs.ar : cs.en) : fallback;
       const latinFont = isAr ? cs?.latin : undefined;
       const layout = (client && cfg.tcLayout?.[client]) || undefined;
+      // Name the T&C layer after the artboard (so it's not "T&C Untitled-1").
+      const selSize = cfg.sizes.find((s) => s.value === selection.size);
+      const catLabel = selSize
+        ? cfg.categories.find((c) => c.value === selSize.category)?.label || ""
+        : "";
+      const artboardName = selSize
+        ? `${catLabel} ${selSize.label} ${selSize.w}X${selSize.h}`.trim()
+        : undefined;
       const opts: TcWriteOptions = {
         text: t,
         dir,
         anchor,
         marginPx: cfg.tcStyle.safeMarginPx,
+        artboardName,
         font,
         latinFont,
         layout,

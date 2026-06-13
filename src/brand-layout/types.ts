@@ -77,6 +77,8 @@ export interface TcWriteOptions {
   anchor: string;
   /** Fixed safe margin in px from the chosen edges. */
   marginPx: number;
+  /** Names the T&C layer "T&C {artboardName}" (falls back to the doc name). */
+  artboardName?: string;
   font: TcFont;
   latinFont?: TcFont;
   layout?: TcLayoutRule;

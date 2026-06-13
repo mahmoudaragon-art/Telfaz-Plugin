@@ -139,21 +139,26 @@ async function placeLinkedPhotoshop(entry: any) {
   await ps.core.executeAsModal(
     async () => {
       const token = await fs.createSessionToken(entry);
-      await ps.action.batchPlay(
-        [
-          {
-            _obj: "placeEvent",
-            null: { _path: token, _kind: "local" },
-            linked: true,
-            freeTransformCenterState: {
-              _enum: "quadCenterState",
-              _value: "QCSAverage",
-            },
-            _options: { dialogOptions: "dontDisplay" },
-          },
-        ],
-        { synchronousExecution: true } as any,
-      );
+      // For .ai/.pdf, crop to the Media Box (full page) — not the tight art box.
+      const desc = (withCrop: boolean): any => ({
+        _obj: "placeEvent",
+        null: { _path: token, _kind: "local" },
+        linked: true,
+        freeTransformCenterState: { _enum: "quadCenterState", _value: "QCSAverage" },
+        ...(withCrop
+          ? { as: { _obj: "PDFGenericFormat", crop: { _enum: "cropTo", _value: "media" } } }
+          : {}),
+        _options: { dialogOptions: "dontDisplay" },
+      });
+      try {
+        await ps.action.batchPlay([desc(true)], { synchronousExecution: true } as any);
+      } catch (e) {
+        console.warn("place with Media Box crop failed; placing without crop", e);
+        const token2 = await fs.createSessionToken(entry);
+        const d = desc(false);
+        d.null._path = token2;
+        await ps.action.batchPlay([d], { synchronousExecution: true } as any);
+      }
     },
     { commandName: "Place Linked Asset" },
   );
@@ -311,7 +316,7 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
   await ps.core.executeAsModal(
     async () => {
       const doc = ps.app.activeDocument;
-      const layerName = "T&C " + doc.name;
+      const layerName = "T&C " + (opts.artboardName || doc.name);
       // points → pixels depends on the doc resolution; convert so px is honoured.
       const resFactor = 72 / ((doc as any).resolution || 72);
       const style = (f: TcFont, withFont: boolean) => {
@@ -405,30 +410,24 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
         }
       }
 
-      // Reassert alignment + direction (so it sticks regardless of create order).
+      // Reassert alignment + paragraph direction by setting the paragraphStyle
+      // PROPERTY directly (this is what the RTL paragraph-direction button does).
       try {
         await ps.action.batchPlay(
           [
             {
               _obj: "set",
-              _target: [{ _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" }],
+              _target: [
+                { _ref: "property", _property: "paragraphStyle" },
+                { _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" },
+              ],
               to: {
-                _obj: "textLayer",
-                paragraphStyleRange: [
-                  {
-                    _obj: "paragraphStyleRange",
-                    from: 0,
-                    to: text.length,
-                    paragraphStyle: {
-                      _obj: "paragraphStyle",
-                      align: { _enum: "alignmentType", _value: align },
-                      direction: {
-                        _enum: "direction",
-                        _value: dir === "rtl" ? "dirRightToLeft" : "dirLeftToRight",
-                      },
-                    },
-                  },
-                ],
+                _obj: "paragraphStyle",
+                align: { _enum: "alignmentType", _value: align },
+                direction: {
+                  _enum: "direction",
+                  _value: dir === "rtl" ? "dirRightToLeft" : "dirLeftToRight",
+                },
               },
             },
           ],
