@@ -395,41 +395,6 @@ export async function createArtboardsDoc(
           ],
           { synchronousExecution: true } as any,
         );
-
-        // Center the placed asset within THIS artboard. placeEvent's auto-center
-        // is unreliable across a multi-artboard row (it lands some assets off-axis
-        // — e.g. the tall Vertical at the left edge). The asset is nested in the
-        // active artboard, so this move stays inside the frame and is a no-op for
-        // assets that already placed centered.
-        const abRect = { left: x, top, right: x + w, bottom: top + h };
-        for (let i = 0; i < 4; i++) {
-          const b = await getActiveLayerBounds(doc);
-          if (!b) break;
-          const lw = b.right - b.left;
-          const lh = b.bottom - b.top;
-          const dx = (abRect.left + abRect.right - lw) / 2 - b.left;
-          const dy = (abRect.top + abRect.bottom - lh) / 2 - b.top;
-          if (Math.abs(dx) < 1 && Math.abs(dy) < 1) break;
-          try {
-            await ps.action.batchPlay(
-              [
-                {
-                  _obj: "move",
-                  _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }],
-                  to: {
-                    _obj: "offset",
-                    horizontal: { _unit: "pixelsUnit", _value: dx },
-                    vertical: { _unit: "pixelsUnit", _value: dy },
-                  },
-                  _options: { dialogOptions: "dontDisplay" },
-                },
-              ],
-              {},
-            );
-          } catch {
-            break;
-          }
-        }
         x += w + gap;
       }
     },
