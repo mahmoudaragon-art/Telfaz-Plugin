@@ -30,7 +30,7 @@ interface Props {
   onPlace: () => void;
   onCreateArtboards: (sizeValues: string[]) => void;
   onWriteTc: (text: string, dir: "rtl" | "ltr", anchor: string) => void;
-  onUpdateTc: (text: string) => void;
+  onUpdateTc: (text: string, anchor: string) => void;
 }
 
 type Mode = "single" | "multiple";
@@ -351,7 +351,7 @@ export const PlaceView: React.FC<Props> = ({
               <PencilIcon />
               Write T&amp;C
             </button>
-            <button className="btn-ghost" onClick={() => onUpdateTc(tcText)}>
+            <button className="btn-ghost" onClick={() => onUpdateTc(tcText, anchor)}>
               Update text
             </button>
           </div>

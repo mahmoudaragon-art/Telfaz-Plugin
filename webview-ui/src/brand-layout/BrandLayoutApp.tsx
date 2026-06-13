@@ -229,12 +229,12 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     }
   };
 
-  const handleUpdateTc = async (text: string) => {
+  const handleUpdateTc = async (text: string, anchor: string) => {
     const t = text.trim();
     if (!t) return setStatus("T&C text is empty", "err");
     setStatus("Updating T&C …", "busy");
     try {
-      await api.updateTcText(t);
+      await api.updateTcText(t, anchor, cfg.tcStyle.safeMarginXPx, cfg.tcStyle.safeMarginYPx);
       setStatus("T&C text updated", "ok");
     } catch (e: any) {
       setStatus("Update failed: " + e.message, "err");

@@ -292,8 +292,17 @@ export async function writeTc(opts: TcWriteOptions) {
   else throw new Error("Unsupported host: " + HOST);
 }
 
-/** Update ONLY the text of the existing "T&C …" layer (keeps font/size/colour/position). */
-export async function updateTcText(text: string) {
+/**
+ * Update ONLY the text of the existing "T&C …" layer (keeps font/size/colour),
+ * then re-anchor it so it keeps its safe margins — extra lines grow upward and
+ * the bottom margin stays fixed.
+ */
+export async function updateTcText(
+  text: string,
+  anchor: string,
+  marginXPx: number,
+  marginYPx: number,
+) {
   if (HOST !== "Photoshop") throw new Error("Update is Photoshop-only for now");
   const ps = photoshop;
   await ps.core.executeAsModal(
@@ -302,6 +311,22 @@ export async function updateTcText(text: string) {
       const tcLayer = findLayerByPrefix(doc.layers, "T&C ");
       if (!tcLayer) throw new Error('No "T&C …" layer on this document');
       tcLayer.textItem.contents = toPsText(text);
+
+      // Re-anchor (bounds change after the text reflows).
+      const b = tcLayer.bounds;
+      const mx = marginXPx ?? 70;
+      const my = marginYPx ?? 80;
+      const lw = b.right - b.left;
+      const lh = b.bottom - b.top;
+      let ty: number;
+      if (anchor.indexOf("bottom") > -1) ty = doc.height - my - b.bottom;
+      else if (anchor.indexOf("top") > -1) ty = my - b.top;
+      else ty = (doc.height - lh) / 2 - b.top;
+      let tx: number;
+      if (anchor.indexOf("right") > -1) tx = doc.width - mx - b.right;
+      else if (anchor.indexOf("left") > -1) tx = mx - b.left;
+      else tx = (doc.width - lw) / 2 - b.left;
+      tcLayer.translate(tx, ty);
     },
     { commandName: "Update T&C" },
   );
@@ -410,32 +435,25 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
         }
       }
 
-      // Reassert alignment (ranged paragraphStyleRange) — this is the form that
-      // makes right-align actually apply.
+      // Alignment + paragraph direction. Both recorded via Alchemist: the
+      // working form is set paragraphStyle PROPERTY with a textOverrideFeatureName
+      // flag (808464433 = align, 808466481 = direction). Best-effort each.
+      const paragraphTarget = [
+        { _ref: "property", _property: "paragraphStyle" },
+        { _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" },
+      ];
       try {
         await ps.action.batchPlay(
           [
             {
               _obj: "set",
-              _target: [{ _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" }],
+              _target: paragraphTarget,
               to: {
-                _obj: "textLayer",
-                paragraphStyleRange: [
-                  {
-                    _obj: "paragraphStyleRange",
-                    from: 0,
-                    to: text.length,
-                    paragraphStyle: {
-                      _obj: "paragraphStyle",
-                      align: { _enum: "alignmentType", _value: align },
-                      direction: {
-                        _enum: "direction",
-                        _value: dir === "rtl" ? "dirRightToLeft" : "dirLeftToRight",
-                      },
-                    },
-                  },
-                ],
+                _obj: "paragraphStyle",
+                textOverrideFeatureName: 808464433,
+                align: { _enum: "alignmentType", _value: align },
               },
+              _options: { dialogOptions: "dontDisplay" },
             },
           ],
           { synchronousExecution: true } as any,
@@ -443,19 +461,12 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
       } catch (e) {
         console.warn("paragraph align not applied", e);
       }
-
-      // Set the ME paragraph direction (RTL/LTR). Recorded via Alchemist: the
-      // working form needs textOverrideFeatureName + directionType (not the plain
-      // paragraphStyle.direction). Separate + best-effort.
       try {
         await ps.action.batchPlay(
           [
             {
               _obj: "set",
-              _target: [
-                { _ref: "property", _property: "paragraphStyle" },
-                { _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" },
-              ],
+              _target: paragraphTarget,
               to: {
                 _obj: "paragraphStyle",
                 textOverrideFeatureName: 808466481,
