@@ -397,7 +397,9 @@ export const PlaceView: React.FC<Props> = ({
       </div>
       <div className="folder-hint">
         Adapt works on the open master design — needs top groups <b>Visual</b> (with a{" "}
-        <b>focal</b> rect) and <b>Text</b> (with a <b>safe</b> rect).
+        <b>focal</b> rect) and <b>Text</b> (with a <b>safe</b> rect), each holding one Smart
+        Object. It also places the brand asset on top, so connect the folder and pick
+        Client / Language / T&amp;C.
       </div>
     </section>
   );

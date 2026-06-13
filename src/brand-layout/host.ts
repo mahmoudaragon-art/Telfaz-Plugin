@@ -424,14 +424,31 @@ const clamp = (v: number, lo: number, hi: number) =>
   Math.max(Math.min(lo, hi), Math.min(Math.max(lo, hi), v));
 
 export async function adaptDesignToSizes(
-  sizes: SizeOption[],
-  _cfg: Config,
-): Promise<{ created: number; failed: string[] }> {
+  items: { size: SizeOption; base: string }[],
+  cfg: Config,
+): Promise<{ created: number; failed: string[]; placedMissing: string[] }> {
   if (HOST !== "Photoshop") throw new Error("Adapt is Photoshop-only");
-  if (!sizes.length) throw new Error("Pick at least one size");
+  if (!items.length) throw new Error("Pick at least one size");
   const ps = photoshop;
+  const sizes = items.map((i) => i.size);
   let created = 0;
   const failed: string[] = [];
+  const placedMissing: string[] = [];
+
+  // Resolve the brand asset for each size up front (file access). Best-effort:
+  // a size with no asset still gets its design adapted, just without the overlay.
+  const assetBySize = new Map<string, any>();
+  if (currentFolder) {
+    for (const it of items) {
+      try {
+        const entry = await resolveAssetEntry(currentFolder, it.base, cfg);
+        if (entry) assetBySize.set(it.size.value, entry);
+        else placedMissing.push(it.base);
+      } catch {
+        placedMissing.push(it.base);
+      }
+    }
+  }
 
   await ps.core.executeAsModal(
     async () => {
@@ -591,10 +608,54 @@ export async function adaptDesignToSizes(
             ],
             {},
           );
+          let abId = 0;
           try {
-            doc.activeLayers[0].name = `${size.label} ${W}x${H}`;
+            const ab = doc.activeLayers[0];
+            ab.name = `${size.label} ${W}x${H}`;
+            abId = ab.id;
           } catch {
             /* ignore */
+          }
+
+          // --- Place the brand asset on TOP, centred in this artboard ---
+          const entry = assetBySize.get(size.value);
+          if (entry && abId) {
+            try {
+              await ps.action.batchPlay(
+                [{ _obj: "select", _target: [{ _ref: "layer", _id: abId }], makeVisible: false }],
+                {},
+              );
+              const token = await fs.createSessionToken(entry);
+              await ps.action.batchPlay(
+                [
+                  {
+                    _obj: "placeEvent",
+                    as: {
+                      _obj: "PDFGenericFormat",
+                      selection: { _enum: "pdfSelection", _value: "page" },
+                      pageNumber: 1,
+                      crop: { _enum: "cropTo", _value: "mediaBox" },
+                      suppressWarnings: false,
+                      antiAlias: true,
+                      clippingPath: true,
+                    },
+                    null: { _path: token, _kind: "local" },
+                    linked: true,
+                    freeTransformCenterState: { _enum: "quadCenterState", _value: "QCSAverage" },
+                    offset: {
+                      _obj: "offset",
+                      horizontal: { _unit: "pixelsUnit", _value: 0 },
+                      vertical: { _unit: "pixelsUnit", _value: 0 },
+                    },
+                    antiAlias: true,
+                    _options: { dialogOptions: "dontDisplay" },
+                  },
+                ],
+                { synchronousExecution: true } as any,
+              );
+            } catch {
+              placedMissing.push(`${size.label} (place failed)`);
+            }
           }
           created++;
         } catch (e: any) {
@@ -607,7 +668,7 @@ export async function adaptDesignToSizes(
     { commandName: "Adapt design to sizes" },
   );
   if (!created) throw new Error(failed.join(" · ") || "Nothing adapted");
-  return { created, failed };
+  return { created, failed, placedMissing };
 }
 
 /* ---------------- T&C writer ---------------- */

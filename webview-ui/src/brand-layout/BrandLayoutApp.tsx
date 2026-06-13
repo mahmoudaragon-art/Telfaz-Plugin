@@ -189,24 +189,31 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
   };
 
   // Adapt the OPEN master design (Visual/Text groups + focal/safe guides) to the
-  // selected sizes — one framed artboard per size beside the master.
+  // selected sizes — one framed artboard per size beside the master — and place
+  // the brand asset (resolved from the folder by Client/Lang/T&C) on top of each.
   const handleAdaptDesign = async (sizeValues: string[]) => {
     if (!hostName.toLowerCase().startsWith("photoshop"))
       return setStatus("Adapt is Photoshop-only", "err");
     if (!sizeValues.length) return setStatus("Select at least one size", "err");
-    const sizes = sizeValues
-      .map((sv) => cfg.sizes.find((s) => s.value === sv))
-      .filter((s): s is SizeOption => !!s);
-    if (!sizes.length) return setStatus("No valid sizes selected", "err");
-    setStatus(`Adapting to ${sizes.length} size${sizes.length === 1 ? "" : "s"} …`, "busy");
+    if (!connected) return setStatus("Connect the source folder first", "err");
+    if (!selection.client || !selection.lang || !selection.tc)
+      return setStatus("Pick client, language and T&C first", "err");
+
+    const items: { size: SizeOption; base: string }[] = [];
+    for (const sv of sizeValues) {
+      const size = cfg.sizes.find((s) => s.value === sv);
+      const base = buildBaseNameForSize(cfg, selection, sv);
+      if (size && base) items.push({ size, base });
+    }
+    if (!items.length) return setStatus("No valid sizes selected", "err");
+
+    setStatus(`Adapting to ${items.length} size${items.length === 1 ? "" : "s"} …`, "busy");
     try {
-      const res = await api.adaptDesignToSizes(sizes, cfg);
-      setStatus(
-        res.failed.length
-          ? `Adapted ${res.created}, failed: ${res.failed.join(" · ")}`
-          : `Adapted ${res.created} size${res.created === 1 ? "" : "s"}`,
-        res.failed.length ? "err" : "ok",
-      );
+      const res = await api.adaptDesignToSizes(items, cfg);
+      const parts = [`Adapted ${res.created}`];
+      if (res.placedMissing.length) parts.push(`no asset: ${res.placedMissing.join(", ")}`);
+      if (res.failed.length) parts.push(`failed: ${res.failed.join(" · ")}`);
+      setStatus(parts.join(" · "), res.failed.length || res.placedMissing.length ? "err" : "ok");
     } catch (e: any) {
       setStatus("Adapt failed: " + (e?.message || e), "err");
     }
