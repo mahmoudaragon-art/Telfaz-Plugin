@@ -395,6 +395,48 @@ export async function createArtboardsDoc(
           ],
           { synchronousExecution: true } as any,
         );
+
+        // Keep the placed asset fully INSIDE its artboard. Some assets (e.g. the
+        // tall Vertical) land hanging off the left edge, clipping the logo. Nudge
+        // ONLY assets that are smaller than the artboard on an axis AND hang off
+        // an edge — full-bleed assets and already-inside ones are never touched.
+        const ab = { left: x, top, right: x + w, bottom: top + h };
+        const cb = await getActiveLayerBounds(doc);
+        if (cb) {
+          const aw = cb.right - cb.left;
+          const ah = cb.bottom - cb.top;
+          let dx = 0;
+          let dy = 0;
+          if (aw < w) {
+            if (cb.left < ab.left) dx = ab.left - cb.left;
+            else if (cb.right > ab.right) dx = ab.right - cb.right;
+          }
+          if (ah < h) {
+            if (cb.top < ab.top) dy = ab.top - cb.top;
+            else if (cb.bottom > ab.bottom) dy = ab.bottom - cb.bottom;
+          }
+          if (dx || dy) {
+            try {
+              await ps.action.batchPlay(
+                [
+                  {
+                    _obj: "move",
+                    _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }],
+                    to: {
+                      _obj: "offset",
+                      horizontal: { _unit: "pixelsUnit", _value: dx },
+                      vertical: { _unit: "pixelsUnit", _value: dy },
+                    },
+                    _options: { dialogOptions: "dontDisplay" },
+                  },
+                ],
+                {},
+              );
+            } catch {
+              /* ignore */
+            }
+          }
+        }
         x += w + gap;
       }
     },
