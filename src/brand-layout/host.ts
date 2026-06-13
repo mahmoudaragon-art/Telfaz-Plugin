@@ -683,61 +683,84 @@ export async function updateTcText(
       const my = marginYPx ?? 80;
       const psText = toPsText(text);
 
-      // Collect EVERY "T&C …" text layer (recurse into artboards/groups).
-      const tcLayers: any[] = [];
+      // Collect EVERY "T&C …" layer's id+name (recurse). We work by ID after this
+      // — DOM refs go stale once the first text reflows the doc (the old bug).
+      const tcs: { id: number; name: string }[] = [];
       const collect = (layers: any) => {
         for (const l of layers as any[]) {
           if (!l) continue;
           try {
-            if (typeof l.name === "string" && l.name.indexOf("T&C ") === 0) tcLayers.push(l);
+            if (typeof l.name === "string" && l.name.indexOf("T&C ") === 0)
+              tcs.push({ id: l.id, name: l.name });
           } catch {
             /* ignore */
           }
-          if (l.layers !== undefined) collect(l.layers);
+          try {
+            if (l.layers !== undefined) collect(l.layers);
+          } catch {
+            /* ignore */
+          }
         }
       };
       collect(doc.layers);
-      if (!tcLayers.length) throw new Error('No "T&C …" layer on this document');
+      if (!tcs.length) throw new Error('No "T&C …" layer on this document');
 
-      for (const tc of tcLayers) {
-        // Replace the text, then re-anchor against this layer's OWN frame (its
-        // artboard if it's in one, else the whole canvas). A bottom anchor pins
-        // the text's bottom a fixed `my` from the frame's bottom — so adding a
-        // line grows the block UPWARD and the gap to the edge stays constant.
+      // Map each T&C to its artboard frame by name ("T&C <artboard name>").
+      const artboards = await getArtboardLayers(doc);
+      const docRect = { left: 0, top: 0, right: Number(doc.width), bottom: Number(doc.height) };
+      const frameFor = (tcName: string) => {
+        const abName = tcName.replace(/^T&C\s+/, "");
+        const ab = artboards.find((a) => a.name === abName);
+        return ab ? ab.rect : docRect;
+      };
+
+      for (const tc of tcs) {
         try {
-          tc.textItem.contents = psText;
+          // Select by ID and edit through a FRESH active-layer ref (keeps styling).
+          await ps.action.batchPlay(
+            [{ _obj: "select", _target: [{ _ref: "layer", _id: tc.id }], makeVisible: false }],
+            {},
+          );
+          const layer = doc.activeLayers[0];
+          layer.textItem.contents = psText;
+
+          // Re-anchor against this T&C's own artboard frame. Bottom anchor pins the
+          // text's bottom a fixed `my` from the frame bottom, so adding a line grows
+          // the block UPWARD and the gap to the edge stays constant.
+          const b = (await getActiveLayerBounds(doc)) || {
+            left: Number(layer.bounds.left),
+            top: Number(layer.bounds.top),
+            right: Number(layer.bounds.right),
+            bottom: Number(layer.bounds.bottom),
+          };
+          const rect = frameFor(tc.name);
+          const lw = b.right - b.left;
+          const lh = b.bottom - b.top;
+          let ty: number;
+          if (anchor.indexOf("bottom") > -1) ty = rect.bottom - my - lh - b.top;
+          else if (anchor.indexOf("top") > -1) ty = rect.top + my - b.top;
+          else ty = (rect.top + rect.bottom - lh) / 2 - b.top;
+          let tx: number;
+          if (anchor.indexOf("right") > -1) tx = rect.right - mx - lw - b.left;
+          else if (anchor.indexOf("left") > -1) tx = rect.left + mx - b.left;
+          else tx = (rect.left + rect.right - lw) / 2 - b.left;
+          await ps.action.batchPlay(
+            [
+              {
+                _obj: "move",
+                _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }],
+                to: {
+                  _obj: "offset",
+                  horizontal: { _unit: "pixelsUnit", _value: tx },
+                  vertical: { _unit: "pixelsUnit", _value: ty },
+                },
+                _options: { dialogOptions: "dontDisplay" },
+              },
+            ],
+            {},
+          );
         } catch {
-          continue;
-        }
-        let rect = { left: 0, top: 0, right: Number(doc.width), bottom: Number(doc.height) };
-        try {
-          const p = tc.parent;
-          if (p && typeof p.id === "number") {
-            const r = await getArtboardRect(p.id);
-            if (r) rect = r;
-          }
-        } catch {
-          /* ignore */
-        }
-        const b = tc.bounds;
-        const left = Number(b.left);
-        const top = Number(b.top);
-        const right = Number(b.right);
-        const bottom = Number(b.bottom);
-        const lw = right - left;
-        const lh = bottom - top;
-        let ty: number;
-        if (anchor.indexOf("bottom") > -1) ty = rect.bottom - my - bottom;
-        else if (anchor.indexOf("top") > -1) ty = rect.top + my - top;
-        else ty = (rect.top + rect.bottom - lh) / 2 - top;
-        let tx: number;
-        if (anchor.indexOf("right") > -1) tx = rect.right - mx - right;
-        else if (anchor.indexOf("left") > -1) tx = rect.left + mx - left;
-        else tx = (rect.left + rect.right - lw) / 2 - left;
-        try {
-          tc.translate(tx, ty);
-        } catch {
-          /* ignore */
+          /* skip this one, keep going */
         }
       }
     },
