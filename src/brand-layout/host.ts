@@ -268,29 +268,18 @@ const psColor = (hex: string) => {
   return { _obj: "RGBColor", red: c.r, grain: c.g, blue: c.b };
 };
 
-const psTextStyle = (f: TcFont) => ({
-  _obj: "textStyle",
-  fontPostScriptName: f.psName,
-  size: { _unit: "pointsUnit", _value: f.sizePx },
-  color: psColor(f.color),
-});
+/** Font descriptor keys — prefer family + style (resolves like the Character
+ *  panel), else an exact PostScript name. */
+const psFontKeys = (f: TcFont) => {
+  const keys: any = {};
+  if (f.psName) keys.fontPostScriptName = f.psName;
+  if (f.family) keys.fontName = f.family;
+  if (f.style) keys.fontStyleName = f.style;
+  return keys;
+};
 
-/** Split into runs so digit runs use the Latin font (Latin numerals in AR). */
-function buildTextStyleRanges(text: string, main: TcFont, latin?: TcFont) {
-  const ranges: any[] = [];
-  let i = 0;
-  while (i < text.length) {
-    const digit = isDigit(text[i]);
-    let j = i + 1;
-    while (j < text.length && isDigit(text[j]) === digit) j++;
-    const f = digit && latin ? latin : main;
-    ranges.push({ _obj: "textStyleRange", from: i, to: j, textStyle: psTextStyle(f) });
-    i = j;
-  }
-  return ranges.length
-    ? ranges
-    : [{ _obj: "textStyleRange", from: 0, to: 0, textStyle: psTextStyle(main) }];
-}
+/** Photoshop uses carriage returns for line breaks in text. */
+const toPsText = (s: string) => s.replace(/\r\n|\n/g, "\r");
 
 export async function writeTc(opts: TcWriteOptions) {
   if (HOST === "Photoshop") await writeTcPhotoshop(opts);
@@ -307,7 +296,7 @@ export async function updateTcText(text: string) {
       const doc = ps.app.activeDocument;
       const tcLayer = findLayerByPrefix(doc.layers, "T&C ");
       if (!tcLayer) throw new Error('No "T&C …" layer on this document');
-      tcLayer.textItem.contents = text;
+      tcLayer.textItem.contents = toPsText(text);
     },
     { commandName: "Update T&C" },
   );
@@ -315,11 +304,19 @@ export async function updateTcText(text: string) {
 
 async function writeTcPhotoshop(opts: TcWriteOptions) {
   const ps = photoshop;
-  const { text, dir, anchor, safeMarginPct, font, latinFont, layout } = opts;
+  const { dir, anchor, safeMarginPct, font, latinFont, layout } = opts;
+  const text = toPsText(opts.text);
   await ps.core.executeAsModal(
     async () => {
       const doc = ps.app.activeDocument;
       const layerName = "T&C " + doc.name;
+      // points → pixels depends on the doc resolution; convert so sizePx is honoured.
+      const resFactor = 72 / ((doc as any).resolution || 72);
+      const sizePt = font.sizePx * resFactor;
+
+      // 1) Create with SIZE + COLOUR + direction only. Keeping the font out of
+      //    this step means the size/colour always apply even if a font name
+      //    can't be resolved (which otherwise drops PS to its ~4pt default).
       await ps.action.batchPlay(
         [
           {
@@ -329,7 +326,18 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
               _obj: "textLayer",
               name: layerName,
               textKey: text,
-              textStyleRange: buildTextStyleRanges(text, font, latinFont),
+              textStyleRange: [
+                {
+                  _obj: "textStyleRange",
+                  from: 0,
+                  to: text.length,
+                  textStyle: {
+                    _obj: "textStyle",
+                    size: { _unit: "pointsUnit", _value: sizePt },
+                    color: psColor(font.color),
+                  },
+                },
+              ],
               paragraphStyle: {
                 _obj: "paragraphStyle",
                 direction: {
@@ -349,6 +357,46 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
       } catch {
         /* ignore */
       }
+
+      // 2) Apply fonts best-effort (won't disturb size/colour if a name fails).
+      const setFont = async (from: number, to: number, f: TcFont) => {
+        try {
+          await ps.action.batchPlay(
+            [
+              {
+                _obj: "set",
+                _target: [{ _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" }],
+                to: {
+                  _obj: "textLayer",
+                  textStyleRange: [
+                    {
+                      _obj: "textStyleRange",
+                      from,
+                      to,
+                      textStyle: { _obj: "textStyle", ...psFontKeys(f) },
+                    },
+                  ],
+                },
+              },
+            ],
+            { synchronousExecution: true } as any,
+          );
+        } catch (e) {
+          console.warn("T&C font not applied:", f.family || f.psName, e);
+        }
+      };
+      await setFont(0, text.length, font);
+      if (latinFont) {
+        let i = 0;
+        while (i < text.length) {
+          const d = isDigit(text[i]);
+          let j = i + 1;
+          while (j < text.length && isDigit(text[j]) === d) j++;
+          if (d) await setFont(i, j, latinFont);
+          i = j;
+        }
+      }
+
       const b = layer.bounds; // left, top, right, bottom (px)
 
       const moveText = async (tx: number, ty: number) => {
@@ -417,7 +465,8 @@ async function writeTcIllustrator(opts: TcWriteOptions) {
   const tf = doc.textFrames.add();
   tf.contents = text;
   try {
-    tf.textRange.characterAttributes.textFont = app.textFonts.getByName(font.psName);
+    const nm = font.psName || [font.family, font.style].filter(Boolean).join("-");
+    if (nm) tf.textRange.characterAttributes.textFont = app.textFonts.getByName(nm);
   } catch {}
   tf.textRange.characterAttributes.size = font.sizePx;
   const c = hexToRgb(font.color);

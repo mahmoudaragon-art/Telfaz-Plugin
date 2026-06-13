@@ -46,14 +46,16 @@ export interface TcStyle {
 }
 
 /**
- * A font run for the T&C text. `psName` must be the Photoshop PostScript font
- * name (in PS: select the type, the character panel shows the family/style;
- * the PostScript name is family + "-" + style with spaces removed).
+ * A font run for the T&C text. Prefer `family` + `style` (Photoshop resolves
+ * these the same way the Character panel does). `psName` (exact PostScript
+ * name) is used if provided. Size is in pixels; colour is hex.
  */
 export interface TcFont {
-  psName: string;
+  family?: string;
+  style?: string;
+  psName?: string;
   sizePx: number;
-  color: string; // hex
+  color: string;
 }
 
 /** Per-client T&C typography (per language) + the font used for Latin digits. */

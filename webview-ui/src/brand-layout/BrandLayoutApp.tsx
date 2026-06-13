@@ -196,7 +196,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
       const cs = cfg.tcClientStyles?.[client];
       // Per-client font for this language, else fall back to the global tcStyle.
       const fallback: TcFont = {
-        psName: isAr ? cfg.tcStyle.fontAR : cfg.tcStyle.fontEN,
+        family: isAr ? cfg.tcStyle.fontAR : cfg.tcStyle.fontEN,
         sizePx: cfg.tcStyle.sizePt,
         color: cfg.tcStyle.color,
       };
