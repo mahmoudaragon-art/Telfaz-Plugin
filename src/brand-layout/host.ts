@@ -553,7 +553,18 @@ async function writeOneTcPS(
     return s;
   };
 
-  // 1) Create text (size + colour + leading), named.
+  // Click-point at the centre of `rect`, expressed as a % of the canvas. Creating
+  // the text here makes Photoshop BORN it nested inside the artboard (the artboard
+  // is selected by the caller), so we never have to move it across the artboard
+  // boundary — which is what triggered the unreliable "capture fling".
+  let dw: any = (doc as any).width;
+  let dh: any = (doc as any).height;
+  if (dw && typeof dw === "object") dw = dw._value ?? dw.value;
+  if (dh && typeof dh === "object") dh = dh._value ?? dh.value;
+  const cxPct = dw ? (((rect.left + rect.right) / 2) / dw) * 100 : 50;
+  const cyPct = dh ? (((rect.top + rect.bottom) / 2) / dh) * 100 : 50;
+
+  // 1) Create text (size + colour + leading), named, at the artboard centre.
   await ps.action.batchPlay(
     [
       {
@@ -563,6 +574,10 @@ async function writeOneTcPS(
           _obj: "textLayer",
           name: layerName,
           textKey: text,
+          textClickPoint: {
+            horizontal: { _unit: "percentUnit", _value: cxPct },
+            vertical: { _unit: "percentUnit", _value: cyPct },
+          },
           textStyleRange: [
             { _obj: "textStyleRange", from: 0, to: text.length, textStyle: style(font, false) },
           ],
@@ -669,27 +684,11 @@ async function writeOneTcPS(
     );
   };
 
-  // 4a) Park the text fully OUTSIDE the artboard (top-left of it) first. A layer
-  //     only nests into an artboard when it CROSSES the artboard's boundary on
-  //     the way in. Text that spawns already inside the frame (e.g. the left-most
-  //     artboard at x=0) would otherwise never be captured and would float loose.
-  //     Parking outside guarantees the move-in crosses the edge for EVERY artboard.
-  try {
-    const pb = await readBounds();
-    if (pb) {
-      const pw = pb.right - pb.left;
-      const ph = pb.bottom - pb.top;
-      await moveBy(rect.left - pw - 300 - pb.left, rect.top - ph - 300 - pb.top);
-    }
-  } catch {
-    /* ignore */
-  }
-
-  // 4b) Move ITERATIVELY into the target corner. The first move-in trips the
-  //     artboard capture (which can fling the layer to an odd spot and nest it);
-  //     re-reading bounds and moving again then settles it exactly. Converges in
-  //     ~2-3 passes and leaves the text nested in the artboard's layer group.
-  for (let i = 0; i < 10; i++) {
+  // Nudge from the artboard centre to the target corner. The text is already
+  // nested (born at the centre via the click-point), so these moves stay INSIDE
+  // the artboard — no boundary crossing, no capture fling. Converges in ~1-2
+  // passes; the loop just absorbs any sub-pixel rounding.
+  for (let i = 0; i < 6; i++) {
     const b = await readBounds();
     if (!b) break;
     const lw = b.right - b.left;
