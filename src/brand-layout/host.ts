@@ -444,16 +444,25 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
         console.warn("paragraph align not applied", e);
       }
 
-      // Toggle the ME paragraph direction (RTL/LTR) via the dedicated command —
-      // separate + best-effort so it can't disturb the alignment above.
+      // Set the ME paragraph direction (RTL/LTR). Recorded via Alchemist: the
+      // working form needs textOverrideFeatureName + directionType (not the plain
+      // paragraphStyle.direction). Separate + best-effort.
       try {
         await ps.action.batchPlay(
           [
             {
-              _obj: "paragraphDirection",
-              direction: {
-                _enum: "paragraphDirectionType",
-                _value: dir === "rtl" ? "rightToLeft" : "leftToRight",
+              _obj: "set",
+              _target: [
+                { _ref: "property", _property: "paragraphStyle" },
+                { _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" },
+              ],
+              to: {
+                _obj: "paragraphStyle",
+                textOverrideFeatureName: 808466481,
+                directionType: {
+                  _enum: "directionType",
+                  _value: dir === "rtl" ? "dirRightToLeft" : "dirLeftToRight",
+                },
               },
               _options: { dialogOptions: "dontDisplay" },
             },
@@ -461,7 +470,7 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
           { synchronousExecution: true } as any,
         );
       } catch (e) {
-        console.warn("paragraph direction command not applied", e);
+        console.warn("paragraph direction not applied", e);
       }
 
       // 3) Position. Fixed safe margin; anchored to the far edges so the block
