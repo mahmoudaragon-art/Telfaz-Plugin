@@ -638,24 +638,59 @@ async function writeOneTcPS(
   }
 
   // 4) Position within `rect` (the artboard or the whole doc) with safe margins.
-  //    Move ITERATIVELY: when a layer crosses into an artboard from outside,
-  //    Photoshop clamps it at the artboard edge, so a single move lands short.
-  //    Re-reading bounds and moving again lets PS capture the layer into the
-  //    artboard, after which the next move travels freely. Converges in ~2-3
-  //    passes and, as a bonus, nests the text into the artboard's layer group.
   const mx = marginXPx ?? 70;
   const my = marginYPx ?? 80;
-  for (let i = 0; i < 6; i++) {
-    const b =
-      (await getActiveLayerBounds(doc)) ||
-      (() => {
-        try {
-          const bb = layer.bounds;
-          return { left: bb.left, top: bb.top, right: bb.right, bottom: bb.bottom };
-        } catch {
-          return null;
-        }
-      })();
+
+  const readBounds = async () =>
+    (await getActiveLayerBounds(doc)) ||
+    (() => {
+      try {
+        const bb = layer.bounds;
+        return { left: bb.left, top: bb.top, right: bb.right, bottom: bb.bottom };
+      } catch {
+        return null;
+      }
+    })();
+  const moveBy = async (dx: number, dy: number) => {
+    await ps.action.batchPlay(
+      [
+        {
+          _obj: "move",
+          _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }],
+          to: {
+            _obj: "offset",
+            horizontal: { _unit: "pixelsUnit", _value: dx },
+            vertical: { _unit: "pixelsUnit", _value: dy },
+          },
+          _options: { dialogOptions: "dontDisplay" },
+        },
+      ],
+      {} as any,
+    );
+  };
+
+  // 4a) Park the text fully OUTSIDE the artboard (top-left of it) first. A layer
+  //     only nests into an artboard when it CROSSES the artboard's boundary on
+  //     the way in. Text that spawns already inside the frame (e.g. the left-most
+  //     artboard at x=0) would otherwise never be captured and would float loose.
+  //     Parking outside guarantees the move-in crosses the edge for EVERY artboard.
+  try {
+    const pb = await readBounds();
+    if (pb) {
+      const pw = pb.right - pb.left;
+      const ph = pb.bottom - pb.top;
+      await moveBy(rect.left - pw - 300 - pb.left, rect.top - ph - 300 - pb.top);
+    }
+  } catch {
+    /* ignore */
+  }
+
+  // 4b) Move ITERATIVELY into the target corner. The first move-in trips the
+  //     artboard capture (which can fling the layer to an odd spot and nest it);
+  //     re-reading bounds and moving again then settles it exactly. Converges in
+  //     ~2-3 passes and leaves the text nested in the artboard's layer group.
+  for (let i = 0; i < 10; i++) {
+    const b = await readBounds();
     if (!b) break;
     const lw = b.right - b.left;
     const lh = b.bottom - b.top;
@@ -670,21 +705,7 @@ async function writeOneTcPS(
     const dy = targetTop - b.top;
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1) break;
     try {
-      await ps.action.batchPlay(
-        [
-          {
-            _obj: "move",
-            _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }],
-            to: {
-              _obj: "offset",
-              horizontal: { _unit: "pixelsUnit", _value: dx },
-              vertical: { _unit: "pixelsUnit", _value: dy },
-            },
-            _options: { dialogOptions: "dontDisplay" },
-          },
-        ],
-        {} as any,
-      );
+      await moveBy(dx, dy);
     } catch (e) {
       console.warn("T&C move not applied", e);
       try {
