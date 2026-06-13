@@ -511,15 +511,23 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
         else tx = (doc.width - lw) / 2 - b.left;
         await moveText(tx, ty);
       }
+    },
+    { commandName: "Write T&C" },
+  );
 
-      // 4) FINAL step: apply the alignment last (recorded form), so nothing
-      //    after it can undo the right-align.
-      try {
+  // FINAL step, in its OWN modal — exactly like the standalone recording. Run
+  // amid the other commands the alignment didn't apply; isolated it does.
+  try {
+    await ps.core.executeAsModal(
+      async () => {
         await ps.action.batchPlay(
           [
             {
               _obj: "set",
-              _target: paragraphTarget,
+              _target: [
+                { _ref: "property", _property: "paragraphStyle" },
+                { _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" },
+              ],
               to: {
                 _obj: "paragraphStyle",
                 textOverrideFeatureName: 808464433,
@@ -528,14 +536,14 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
               _options: { dialogOptions: "dontDisplay" },
             },
           ],
-          {} as any,
+          {},
         );
-      } catch (e) {
-        console.warn("paragraph align not applied", e);
-      }
-    },
-    { commandName: "Write T&C" },
-  );
+      },
+      { commandName: "Align T&C" },
+    );
+  } catch (e) {
+    console.warn("paragraph align not applied", e);
+  }
 }
 
 async function writeTcIllustrator(opts: TcWriteOptions) {
