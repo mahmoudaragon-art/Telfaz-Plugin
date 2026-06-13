@@ -76,7 +76,7 @@ export const baseConfig: Config = {
     anchor: "bottom-center",
     marginPt: 36,
     safeMarginPct: 4,
-    safeMarginPx: 70,
+    safeMarginPx: 80,
   },
   // Per-client T&C placement. Clients not listed use "bottom" (NEO/default).
   tcLayout: {

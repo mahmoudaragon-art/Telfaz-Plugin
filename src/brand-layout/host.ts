@@ -340,14 +340,23 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
               textStyleRange: [
                 { _obj: "textStyleRange", from: 0, to: text.length, textStyle: style(font, false) },
               ],
-              paragraphStyle: {
-                _obj: "paragraphStyle",
-                align: { _enum: "alignmentType", _value: align },
-                direction: {
-                  _enum: "direction",
-                  _value: dir === "rtl" ? "dirRightToLeft" : "dirLeftToRight",
+              // Must be a ranged paragraph style — a bare paragraphStyle is ignored
+              // (which left the text left-aligned / wrong direction).
+              paragraphStyleRange: [
+                {
+                  _obj: "paragraphStyleRange",
+                  from: 0,
+                  to: text.length,
+                  paragraphStyle: {
+                    _obj: "paragraphStyle",
+                    align: { _enum: "alignmentType", _value: align },
+                    direction: {
+                      _enum: "direction",
+                      _value: dir === "rtl" ? "dirRightToLeft" : "dirLeftToRight",
+                    },
+                  },
                 },
-              },
+              ],
             },
           },
         ],
@@ -394,6 +403,39 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
           if (d) await applyRun(i, j, latinFont);
           i = j;
         }
+      }
+
+      // Reassert alignment + direction (so it sticks regardless of create order).
+      try {
+        await ps.action.batchPlay(
+          [
+            {
+              _obj: "set",
+              _target: [{ _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" }],
+              to: {
+                _obj: "textLayer",
+                paragraphStyleRange: [
+                  {
+                    _obj: "paragraphStyleRange",
+                    from: 0,
+                    to: text.length,
+                    paragraphStyle: {
+                      _obj: "paragraphStyle",
+                      align: { _enum: "alignmentType", _value: align },
+                      direction: {
+                        _enum: "direction",
+                        _value: dir === "rtl" ? "dirRightToLeft" : "dirLeftToRight",
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+          { synchronousExecution: true } as any,
+        );
+      } catch (e) {
+        console.warn("paragraph align/direction not applied", e);
       }
 
       // 3) Position. Fixed safe margin; anchored to the far edges so the block
