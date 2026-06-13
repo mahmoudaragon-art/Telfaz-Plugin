@@ -138,7 +138,6 @@ async function placeLinkedPhotoshop(entry: any) {
   const ps = photoshop;
   await ps.core.executeAsModal(
     async () => {
-      const doc = ps.app.activeDocument;
       const token = await fs.createSessionToken(entry);
       await ps.action.batchPlay(
         [
@@ -168,17 +167,6 @@ async function placeLinkedPhotoshop(entry: any) {
         ],
         { synchronousExecution: true } as any,
       );
-      // Center the placed layer in the document (belt-and-suspenders).
-      try {
-        const layer = doc.activeLayers[0];
-        const b = layer.bounds;
-        layer.translate(
-          doc.width / 2 - (b.left + b.right) / 2,
-          doc.height / 2 - (b.top + b.bottom) / 2,
-        );
-      } catch {
-        /* ignore */
-      }
     },
     { commandName: "Place Linked Asset" },
   );
@@ -446,25 +434,7 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
         { _ref: "property", _property: "paragraphStyle" },
         { _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" },
       ];
-      try {
-        await ps.action.batchPlay(
-          [
-            {
-              _obj: "set",
-              _target: paragraphTarget,
-              to: {
-                _obj: "paragraphStyle",
-                textOverrideFeatureName: 808464433,
-                align: { _enum: "alignmentType", _value: align },
-              },
-              _options: { dialogOptions: "dontDisplay" },
-            },
-          ],
-          {} as any,
-        );
-      } catch (e) {
-        console.warn("paragraph align not applied", e);
-      }
+      // Direction first…
       try {
         await ps.action.batchPlay(
           [
@@ -486,6 +456,26 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
         );
       } catch (e) {
         console.warn("paragraph direction not applied", e);
+      }
+      // …then alignment LAST, so it isn't undone by the direction change.
+      try {
+        await ps.action.batchPlay(
+          [
+            {
+              _obj: "set",
+              _target: paragraphTarget,
+              to: {
+                _obj: "paragraphStyle",
+                textOverrideFeatureName: 808464433,
+                align: { _enum: "alignmentType", _value: align },
+              },
+              _options: { dialogOptions: "dontDisplay" },
+            },
+          ],
+          {} as any,
+        );
+      } catch (e) {
+        console.warn("paragraph align not applied", e);
       }
 
       // 3) Position. Fixed safe margin; anchored to the far edges so the block
