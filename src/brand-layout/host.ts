@@ -543,7 +543,7 @@ export async function adaptDesignToSizes(
           }
           const vsoId = vso.id;
 
-          // --- Text: scale-to-fit, map `safe` to the same relative spot ---
+          // --- Text: scale-to-fit, centred horizontally, anchored near the top ---
           let tsoId = 0;
           if (textSOId && safe) {
             const tso = await dupSO(textSOId);
@@ -551,13 +551,15 @@ export async function adaptDesignToSizes(
             const t = layerBounds(tso);
             const Cx = (t.left + t.right) / 2;
             const Cy = (t.top + t.bottom) / 2;
+            const lh = t.bottom - t.top;
             const s = Math.min(W / masterW, H / masterH);
             await tso.scale(s * 100, s * 100, anchor);
-            const sx = Cx + ((safe.left + safe.right) / 2 - Cx) * s;
-            const sy = Cy + ((safe.top + safe.bottom) / 2 - Cy) * s;
-            const rx = (safe.left + safe.right) / 2 / masterW;
-            const ry = (safe.top + safe.bottom) / 2 / masterH;
-            await tso.translate(ax + rx * W - sx, ay + ry * H - sy);
+            // Centre the text horizontally in the artboard; anchor its TOP at the
+            // safe rect's relative top so it sits high (matching the master).
+            const topRatio = safe.top / masterH;
+            const tx = ax + W / 2 - Cx;
+            const ty = ay + topRatio * H - (Cy - (lh * s) / 2);
+            await tso.translate(tx, ty);
           }
 
           // --- Frame: select both SOs, make an artboard that wraps + clips them ---
