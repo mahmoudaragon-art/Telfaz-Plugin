@@ -324,20 +324,23 @@ export async function createArtboardsDoc(
 
       const gap = 120;
       let x = 0;
-      // Middle-align: every artboard shares the first artboard's vertical centre.
-      const commonCenterY = resolved[0].size.h / 2;
+      // Middle-align: every artboard is centred on one line (the tallest defines
+      // it). Create them at that position directly so artboardRect stays accurate.
+      const maxH = Math.max(...resolved.map((r) => r.size.h));
+      const cy = maxH / 2;
       for (const it of resolved) {
         const w = it.size.w;
         const h = it.size.h;
-        // Empty artboard at the current offset (deselect first so it doesn't
-        // wrap the previously placed layer).
+        const top = cy - h / 2;
+        // Empty artboard, already centred vertically (deselect first so it
+        // doesn't wrap the previously placed layer).
         await deselect();
         await ps.action.batchPlay(
           [
             {
               _obj: "make",
               _target: [{ _ref: "artboardSection" }],
-              artboardRect: { _obj: "classFloatRect", top: 0, left: x, bottom: h, right: x + w },
+              artboardRect: { _obj: "classFloatRect", top, left: x, bottom: top + h, right: x + w },
               using: { _obj: "artboardSection" },
             },
           ],
@@ -392,31 +395,6 @@ export async function createArtboardsDoc(
           ],
           { synchronousExecution: true } as any,
         );
-
-        // Middle-align this artboard with the others (moves the artboard AND its
-        // content). Taller artboards (e.g. Vertical) shift up to share the centre.
-        const offsetY = commonCenterY - h / 2;
-        if (abId && offsetY !== 0) {
-          try {
-            await ps.action.batchPlay(
-              [
-                { _obj: "select", _target: [{ _ref: "layer", _id: abId }], makeVisible: false },
-                {
-                  _obj: "move",
-                  _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }],
-                  to: {
-                    _obj: "offset",
-                    horizontal: { _unit: "pixelsUnit", _value: 0 },
-                    vertical: { _unit: "pixelsUnit", _value: offsetY },
-                  },
-                },
-              ],
-              {},
-            );
-          } catch {
-            /* ignore */
-          }
-        }
         x += w + gap;
       }
     },
