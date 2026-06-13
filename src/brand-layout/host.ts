@@ -531,6 +531,36 @@ export async function adaptDesignToSizes(
       const maxH = Math.max(...sizes.map((s) => s.h));
       const rowCy = maxH / 2;
 
+      // Photoshop wraps a doc's loose top-level layers into its FIRST artboard.
+      // Make a throwaway empty artboard first (deselected → it absorbs nothing) so
+      // the doc enters artboard mode without grabbing the master; the real
+      // artboards then wrap only their own SOs. Deleted at the end if it stayed
+      // empty (never delete absorbed content).
+      let tmpId = 0;
+      let tmpEmpty = true;
+      try {
+        await ps.action.batchPlay(
+          [{ _obj: "selectNoLayers", _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }] }],
+          {},
+        );
+        await ps.action.batchPlay(
+          [
+            {
+              _obj: "make",
+              _target: [{ _ref: "artboardSection" }],
+              artboardRect: { _obj: "classFloatRect", top: -1500, left: x, bottom: -1400, right: x + 100 },
+              using: { _obj: "artboardSection" },
+            },
+          ],
+          {},
+        );
+        const t = doc.activeLayers[0];
+        tmpId = t.id;
+        tmpEmpty = !(t.layers && t.layers.length > 0);
+      } catch {
+        /* ignore */
+      }
+
       for (const size of sizes) {
         const W = size.w;
         const H = size.h;
@@ -571,11 +601,11 @@ export async function adaptDesignToSizes(
             const lh = t.bottom - t.top;
             const s = Math.min(W / masterW, H / masterH);
             await tso.scale(s * 100, s * 100, anchor);
-            // Centre the text horizontally in the artboard; anchor its TOP at the
-            // safe rect's relative top so it sits high (matching the master).
-            const topRatio = safe.top / masterH;
+            // Centre the text horizontally in the artboard; leave a 30% gap from
+            // the top edge before the text block begins.
+            const TEXT_TOP_RATIO = 0.3;
             const tx = ax + W / 2 - Cx;
-            const ty = ay + topRatio * H - (Cy - (lh * s) / 2);
+            const ty = ay + TEXT_TOP_RATIO * H - (Cy - (lh * s) / 2);
             await tso.translate(tx, ty);
           }
 
@@ -662,6 +692,15 @@ export async function adaptDesignToSizes(
           const msg =
             (e && e.message) || (typeof e === "string" ? e : JSON.stringify(e)) || "unknown";
           failed.push(`${size.label}: ${msg}`);
+        }
+      }
+
+      // Remove the throwaway artboard — but only if it never absorbed anything.
+      if (tmpId && tmpEmpty) {
+        try {
+          await ps.action.batchPlay([{ _obj: "delete", _target: [{ _ref: "layer", _id: tmpId }] }], {});
+        } catch {
+          /* ignore */
         }
       }
     },
