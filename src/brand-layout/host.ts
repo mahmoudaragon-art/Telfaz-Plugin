@@ -458,11 +458,16 @@ export async function adaptDesignToSizes(
       const contentLayer = (g: any, guideRe: RegExp) =>
         (g.layers as any[]).find((c) => !guideRe.test(c.name));
 
-      const focalL = childMatch(visualG, /focal/i);
-      if (!focalL) throw new Error('No "focal" rectangle inside the Visual group');
+      // Focal guide(s). Two orientations are supported: "Focal Vertical" (used
+      // when the target is taller than wide) and "Focal Horizontal" (wider than
+      // tall). A single "focal" rect still works as the fallback for both.
+      const focalLayers = (visualG.layers as any[]).filter((c) => /focal/i.test(c.name));
+      if (!focalLayers.length) throw new Error('No "focal" rectangle inside the Visual group');
+      const pickFocal = (re: RegExp) => focalLayers.find((c: any) => re.test(c.name)) || focalLayers[0];
+      const focalVert = layerBounds(pickFocal(/vert/i));
+      const focalHoriz = layerBounds(pickFocal(/horiz/i));
       const visualContent = contentLayer(visualG, /focal/i);
       if (!visualContent) throw new Error("No content layer inside the Visual group");
-      const focal = layerBounds(focalL);
       const visualSOId: number = visualContent.id;
 
       let safe: Box | null = null;
@@ -516,6 +521,8 @@ export async function adaptDesignToSizes(
         const ay = rowCy - H / 2;
         x += W + gap;
         try {
+          // Taller-than-wide → vertical focal; otherwise horizontal (square too).
+          const focal = H > W ? focalVert : focalHoriz;
           // --- Visual: cover-fit, keep `focal` centred in the frame ---
           const vso = await dupSO(visualSOId);
           {
@@ -670,25 +677,67 @@ export async function updateTcText(
   await ps.core.executeAsModal(
     async () => {
       const doc = ps.app.activeDocument;
-      const tcLayer = findLayerByPrefix(doc.layers, "T&C ");
-      if (!tcLayer) throw new Error('No "T&C …" layer on this document');
-      tcLayer.textItem.contents = toPsText(text);
-
-      // Re-anchor (bounds change after the text reflows).
-      const b = tcLayer.bounds;
       const mx = marginXPx ?? 70;
       const my = marginYPx ?? 80;
-      const lw = b.right - b.left;
-      const lh = b.bottom - b.top;
-      let ty: number;
-      if (anchor.indexOf("bottom") > -1) ty = doc.height - my - b.bottom;
-      else if (anchor.indexOf("top") > -1) ty = my - b.top;
-      else ty = (doc.height - lh) / 2 - b.top;
-      let tx: number;
-      if (anchor.indexOf("right") > -1) tx = doc.width - mx - b.right;
-      else if (anchor.indexOf("left") > -1) tx = mx - b.left;
-      else tx = (doc.width - lw) / 2 - b.left;
-      tcLayer.translate(tx, ty);
+      const psText = toPsText(text);
+
+      // Collect EVERY "T&C …" text layer (recurse into artboards/groups).
+      const tcLayers: any[] = [];
+      const collect = (layers: any) => {
+        for (const l of layers as any[]) {
+          if (!l) continue;
+          try {
+            if (typeof l.name === "string" && l.name.indexOf("T&C ") === 0) tcLayers.push(l);
+          } catch {
+            /* ignore */
+          }
+          if (l.layers !== undefined) collect(l.layers);
+        }
+      };
+      collect(doc.layers);
+      if (!tcLayers.length) throw new Error('No "T&C …" layer on this document');
+
+      for (const tc of tcLayers) {
+        // Replace the text, then re-anchor against this layer's OWN frame (its
+        // artboard if it's in one, else the whole canvas). A bottom anchor pins
+        // the text's bottom a fixed `my` from the frame's bottom — so adding a
+        // line grows the block UPWARD and the gap to the edge stays constant.
+        try {
+          tc.textItem.contents = psText;
+        } catch {
+          continue;
+        }
+        let rect = { left: 0, top: 0, right: Number(doc.width), bottom: Number(doc.height) };
+        try {
+          const p = tc.parent;
+          if (p && typeof p.id === "number") {
+            const r = await getArtboardRect(p.id);
+            if (r) rect = r;
+          }
+        } catch {
+          /* ignore */
+        }
+        const b = tc.bounds;
+        const left = Number(b.left);
+        const top = Number(b.top);
+        const right = Number(b.right);
+        const bottom = Number(b.bottom);
+        const lw = right - left;
+        const lh = bottom - top;
+        let ty: number;
+        if (anchor.indexOf("bottom") > -1) ty = rect.bottom - my - bottom;
+        else if (anchor.indexOf("top") > -1) ty = rect.top + my - top;
+        else ty = (rect.top + rect.bottom - lh) / 2 - top;
+        let tx: number;
+        if (anchor.indexOf("right") > -1) tx = rect.right - mx - right;
+        else if (anchor.indexOf("left") > -1) tx = rect.left + mx - left;
+        else tx = (rect.left + rect.right - lw) / 2 - left;
+        try {
+          tc.translate(tx, ty);
+        } catch {
+          /* ignore */
+        }
+      }
     },
     { commandName: "Update T&C" },
   );
