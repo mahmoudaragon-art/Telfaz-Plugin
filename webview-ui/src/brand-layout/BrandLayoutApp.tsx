@@ -4,6 +4,7 @@ import "./styles.css";
 import {
   Config,
   Selection,
+  SizeOption,
   Ui,
   VerifyResult,
   TcFont,
@@ -139,39 +140,52 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     }
   };
 
-  /** Create a new doc per size and place the asset (single or batch). */
+  /** Create artboards for the selected size(s) — Photoshop: all in one PSD. */
   const handleCreateArtboards = async (sizeValues: string[]) => {
     if (!connected) return setStatus("Connect the source folder first", "err");
     if (!selection.client || !selection.lang || !selection.tc)
       return setStatus("Pick client, language and T&C first", "err");
     if (!sizeValues.length) return setStatus("Select at least one size", "err");
 
-    let ok = 0;
-    const fails: string[] = [];
+    type Item = { base: string; size: SizeOption; artboardName: string };
+    const items: Item[] = [];
     for (const sv of sizeValues) {
       const size = cfg.sizes.find((s) => s.value === sv);
       const base = buildBaseNameForSize(cfg, selection, sv);
-      if (!size || !base) {
-        fails.push(sv);
-        continue;
-      }
-      // Artboard/doc name like "Social Media Square 1080X1080".
+      if (!size || !base) continue;
       const catLabel = cfg.categories.find((c) => c.value === size.category)?.label || "";
-      const artboardName = `${catLabel} ${size.label} ${size.w}X${size.h}`.trim();
-      setStatus(`Creating ${size.label} (${size.w}×${size.h}) …`, "busy");
-      try {
-        await api.createArtboardAndPlace(base, size, cfg, artboardName);
-        ok++;
-      } catch (e: any) {
-        fails.push(`${sv}: ${e.message}`);
-      }
+      items.push({ base, size, artboardName: `${catLabel} ${size.label} ${size.w}X${size.h}`.trim() });
     }
-    setStatus(
-      fails.length
-        ? `Created ${ok}, failed: ${fails.join(" · ")}`
-        : `Created ${ok} artboard${ok === 1 ? "" : "s"}`,
-      fails.length ? "err" : "ok",
-    );
+    if (!items.length) return setStatus("No valid sizes selected", "err");
+
+    setStatus(`Creating ${items.length} artboard${items.length === 1 ? "" : "s"} …`, "busy");
+    try {
+      if (hostName.toLowerCase().startsWith("photoshop")) {
+        // One PSD, an artboard per size.
+        const res = await api.createArtboardsDoc(items, cfg);
+        setStatus(
+          res.missing.length
+            ? `Created ${res.created}, missing: ${res.missing.join(", ")}`
+            : `Created ${res.created} artboard${res.created === 1 ? "" : "s"} in one PSD`,
+          res.missing.length ? "err" : "ok",
+        );
+      } else {
+        // Illustrator (or other): one doc per size.
+        let ok = 0;
+        const fails: string[] = [];
+        for (const it of items) {
+          try {
+            await api.createArtboardAndPlace(it.base, it.size, cfg, it.artboardName);
+            ok++;
+          } catch (e: any) {
+            fails.push(`${it.size.value}: ${e.message}`);
+          }
+        }
+        setStatus(fails.length ? `Created ${ok}, failed: ${fails.join(" · ")}` : `Created ${ok}`, fails.length ? "err" : "ok");
+      }
+    } catch (e: any) {
+      setStatus("Create failed: " + e.message, "err");
+    }
   };
 
   const handleVerify = async () => {

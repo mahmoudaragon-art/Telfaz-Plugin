@@ -247,6 +247,125 @@ async function createDocIllustrator(size: SizeOption, name: string) {
   }
 }
 
+/**
+ * Create ONE Photoshop document with an artboard per size, laid out in a row.
+ * Each artboard is named "{Category} {Size} WxH" with its asset placed (Media
+ * Box) and centered. Returns how many were created + any missing base names.
+ */
+export async function createArtboardsDoc(
+  items: { base: string; size: SizeOption; artboardName: string }[],
+  cfg: Config,
+): Promise<{ created: number; missing: string[] }> {
+  if (HOST !== "Photoshop") throw new Error("Multi-artboard is Photoshop-only");
+  if (!currentFolder) throw new Error("Connect the source folder first");
+
+  // Resolve every asset up front (file access).
+  const resolved: { size: SizeOption; artboardName: string; entry: any }[] = [];
+  const missing: string[] = [];
+  for (const it of items) {
+    const entry = await resolveAssetEntry(currentFolder, it.base, cfg);
+    if (entry) resolved.push({ size: it.size, artboardName: it.artboardName, entry });
+    else missing.push(it.base);
+  }
+  if (!resolved.length) throw new Error("No assets found for the selected sizes");
+
+  const ps = photoshop;
+  await ps.core.executeAsModal(
+    async () => {
+      const first = resolved[0];
+      await ps.app.documents.add({
+        width: first.size.w,
+        height: first.size.h,
+        resolution: 72,
+        name: "Telfaz Sizes",
+        fill: "white",
+        mode: "RGBColorMode",
+      } as any);
+      const doc = ps.app.activeDocument;
+
+      const deselect = async () => {
+        try {
+          await ps.action.batchPlay(
+            [{ _obj: "selectNoLayers", _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }] }],
+            {},
+          );
+        } catch {
+          /* ignore */
+        }
+      };
+
+      const gap = 120;
+      let x = 0;
+      for (const it of resolved) {
+        const w = it.size.w;
+        const h = it.size.h;
+        // Empty artboard at the current offset (deselect first so it doesn't
+        // wrap the previously placed layer).
+        await deselect();
+        await ps.action.batchPlay(
+          [
+            {
+              _obj: "make",
+              _target: [{ _ref: "artboardSection" }],
+              artboardRect: { _obj: "classFloatRect", top: 0, left: x, bottom: h, right: x + w },
+              using: { _obj: "artboardSection" },
+            },
+          ],
+          {},
+        );
+        try {
+          doc.activeLayers[0].name = it.artboardName;
+        } catch {
+          /* ignore */
+        }
+
+        // Place the asset (Media Box) and center it on this artboard.
+        const token = await fs.createSessionToken(it.entry);
+        await ps.action.batchPlay(
+          [
+            {
+              _obj: "placeEvent",
+              as: {
+                _obj: "PDFGenericFormat",
+                selection: { _enum: "pdfSelection", _value: "page" },
+                pageNumber: 1,
+                crop: { _enum: "cropTo", _value: "mediaBox" },
+                suppressWarnings: false,
+                antiAlias: true,
+                clippingPath: true,
+              },
+              null: { _path: token, _kind: "local" },
+              linked: true,
+              freeTransformCenterState: { _enum: "quadCenterState", _value: "QCSAverage" },
+              offset: {
+                _obj: "offset",
+                horizontal: { _unit: "pixelsUnit", _value: 0 },
+                vertical: { _unit: "pixelsUnit", _value: 0 },
+              },
+              antiAlias: true,
+              _options: { dialogOptions: "dontDisplay" },
+            },
+          ],
+          { synchronousExecution: true } as any,
+        );
+        try {
+          const layer = doc.activeLayers[0];
+          const b = layer.bounds;
+          layer.translate(
+            x + w / 2 - (b.left + b.right) / 2,
+            h / 2 - (b.top + b.bottom) / 2,
+          );
+        } catch {
+          /* ignore */
+        }
+        x += w + gap;
+      }
+    },
+    { commandName: "Create Artboards" },
+  );
+  return { created: resolved.length, missing };
+}
+
 /* ---------------- T&C writer ---------------- */
 
 /** Find a layer (recursing into groups) by exact name. */
