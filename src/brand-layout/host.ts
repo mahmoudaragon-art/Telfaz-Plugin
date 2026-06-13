@@ -309,7 +309,7 @@ export async function updateTcText(text: string) {
 
 async function writeTcPhotoshop(opts: TcWriteOptions) {
   const ps = photoshop;
-  const { dir, anchor, marginPx, font, latinFont, layout } = opts;
+  const { dir, anchor, marginXPx, marginYPx, font, latinFont, layout } = opts;
   const text = toPsText(opts.text);
   // Arabic → right align; English → left. RTL also flips the script direction.
   const align = dir === "rtl" ? "right" : "left";
@@ -410,31 +410,58 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
         }
       }
 
-      // Reassert alignment + paragraph direction by setting the paragraphStyle
-      // PROPERTY directly (this is what the RTL paragraph-direction button does).
+      // Reassert alignment (ranged paragraphStyleRange) — this is the form that
+      // makes right-align actually apply.
       try {
         await ps.action.batchPlay(
           [
             {
               _obj: "set",
-              _target: [
-                { _ref: "property", _property: "paragraphStyle" },
-                { _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" },
-              ],
+              _target: [{ _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" }],
               to: {
-                _obj: "paragraphStyle",
-                align: { _enum: "alignmentType", _value: align },
-                direction: {
-                  _enum: "direction",
-                  _value: dir === "rtl" ? "dirRightToLeft" : "dirLeftToRight",
-                },
+                _obj: "textLayer",
+                paragraphStyleRange: [
+                  {
+                    _obj: "paragraphStyleRange",
+                    from: 0,
+                    to: text.length,
+                    paragraphStyle: {
+                      _obj: "paragraphStyle",
+                      align: { _enum: "alignmentType", _value: align },
+                      direction: {
+                        _enum: "direction",
+                        _value: dir === "rtl" ? "dirRightToLeft" : "dirLeftToRight",
+                      },
+                    },
+                  },
+                ],
               },
             },
           ],
           { synchronousExecution: true } as any,
         );
       } catch (e) {
-        console.warn("paragraph align/direction not applied", e);
+        console.warn("paragraph align not applied", e);
+      }
+
+      // Toggle the ME paragraph direction (RTL/LTR) via the dedicated command —
+      // separate + best-effort so it can't disturb the alignment above.
+      try {
+        await ps.action.batchPlay(
+          [
+            {
+              _obj: "paragraphDirection",
+              direction: {
+                _enum: "paragraphDirectionType",
+                _value: dir === "rtl" ? "rightToLeft" : "leftToRight",
+              },
+              _options: { dialogOptions: "dontDisplay" },
+            },
+          ],
+          { synchronousExecution: true } as any,
+        );
+      } catch (e) {
+        console.warn("paragraph direction command not applied", e);
       }
 
       // 3) Position. Fixed safe margin; anchored to the far edges so the block
@@ -477,15 +504,16 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
       }
 
       if (!placed) {
-        const m = marginPx ?? 70;
+        const mx = marginXPx ?? 70; // left / right
+        const my = marginYPx ?? 80; // top / bottom
         const lw = b.right - b.left;
         const lh = b.bottom - b.top;
         let tx: number, ty: number;
-        if (anchor.indexOf("bottom") > -1) ty = doc.height - m - lh - b.top;
-        else if (anchor.indexOf("top") > -1) ty = m - b.top;
+        if (anchor.indexOf("bottom") > -1) ty = doc.height - my - lh - b.top;
+        else if (anchor.indexOf("top") > -1) ty = my - b.top;
         else ty = (doc.height - lh) / 2 - b.top;
-        if (anchor.indexOf("right") > -1) tx = doc.width - m - lw - b.left;
-        else if (anchor.indexOf("left") > -1) tx = m - b.left;
+        if (anchor.indexOf("right") > -1) tx = doc.width - mx - lw - b.left;
+        else if (anchor.indexOf("left") > -1) tx = mx - b.left;
         else tx = (doc.width - lw) / 2 - b.left;
         await moveText(tx, ty);
       }
@@ -499,7 +527,7 @@ async function writeTcIllustrator(opts: TcWriteOptions) {
   const app = ill.app;
   if (!app.documents.length) throw new Error("Open a document first");
   const doc = app.activeDocument;
-  const { text, anchor, marginPx, font } = opts;
+  const { text, anchor, marginXPx, marginYPx, font } = opts;
   const tf = doc.textFrames.add();
   tf.contents = text;
   try {
@@ -519,15 +547,16 @@ async function writeTcIllustrator(opts: TcWriteOptions) {
     /* ignore */
   }
   const ab = doc.artboards[doc.artboards.getActiveArtboardIndex()].artboardRect; // [l,t,r,b]
-  const m = marginPx ?? 70;
+  const mx = marginXPx ?? 70;
+  const my = marginYPx ?? 80;
   const w = tf.width;
   const h = tf.height;
   let x: number, y: number;
-  if (anchor.indexOf("left") > -1) x = ab[0] + m;
-  else if (anchor.indexOf("right") > -1) x = ab[2] - m - w;
+  if (anchor.indexOf("left") > -1) x = ab[0] + mx;
+  else if (anchor.indexOf("right") > -1) x = ab[2] - mx - w;
   else x = (ab[0] + ab[2]) / 2 - w / 2;
-  if (anchor.indexOf("bottom") > -1) y = ab[3] + m + h;
-  else if (anchor.indexOf("top") > -1) y = ab[1] - m;
+  if (anchor.indexOf("bottom") > -1) y = ab[3] + my + h;
+  else if (anchor.indexOf("top") > -1) y = ab[1] - my;
   else y = (ab[1] + ab[3]) / 2 + h / 2;
   tf.position = [x, y];
 }

@@ -43,8 +43,9 @@ export interface TcStyle {
   marginPt: number;
   /** Safe margin as a % of the artboard's shorter side (legacy/fallback). */
   safeMarginPct: number;
-  /** Fixed safe margin in px (preferred — e.g. 70px from the edges). */
-  safeMarginPx: number;
+  /** Fixed safe margins in px: horizontal (left/right) and vertical (top/bottom). */
+  safeMarginXPx: number;
+  safeMarginYPx: number;
 }
 
 /**
@@ -75,8 +76,9 @@ export interface TcWriteOptions {
   text: string;
   dir: "rtl" | "ltr";
   anchor: string;
-  /** Fixed safe margin in px from the chosen edges. */
-  marginPx: number;
+  /** Fixed safe margins in px (horizontal = left/right, vertical = top/bottom). */
+  marginXPx: number;
+  marginYPx: number;
   /** Names the T&C layer "T&C {artboardName}" (falls back to the doc name). */
   artboardName?: string;
   font: TcFont;
