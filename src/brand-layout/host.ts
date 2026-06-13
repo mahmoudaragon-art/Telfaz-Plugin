@@ -322,12 +322,14 @@ export async function createArtboardsDoc(
           /* ignore */
         }
 
-        // Focus the view on this artboard before placing (so the place lands on
-        // it, and the canvas follows along visibly).
+        // Target this artboard for the place (like opt-selecting it) WITHOUT
+        // scrolling the view — moving the view made the place follow it and
+        // mis-centered tall artboards. Selecting it makes it the active artboard
+        // so the place auto-centers on it.
         if (abId) {
           try {
             await ps.action.batchPlay(
-              [{ _obj: "select", _target: [{ _ref: "layer", _id: abId }], makeVisible: true }],
+              [{ _obj: "select", _target: [{ _ref: "layer", _id: abId }], makeVisible: false }],
               {},
             );
           } catch {
