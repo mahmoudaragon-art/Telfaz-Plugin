@@ -403,6 +403,171 @@ export async function createArtboardsDoc(
   return { created: resolved.length, missing };
 }
 
+/* ---------------- design adaptation (one master → many sizes) ----------------
+   The active document is a master design with two top-level groups:
+     • "Visual" (imagery) containing a rect named "focal" (must-keep region)
+     • "Text"   (copy)    containing a rect named "safe"  (text box)
+   For each target size we build a framed artboard beside the master: the Visual
+   is cover-fit (fill the frame, keep `focal` centred) and the Text is fit-scaled
+   so `safe` maps proportionally. Both groups are converted to Smart Objects first
+   so they scale/move as one clean unit (validated: a raw group warps). */
+
+type Box = { left: number; top: number; right: number; bottom: number };
+
+const layerBounds = (l: any): Box => {
+  const N = (v: any) => Number(v && typeof v === "object" && "_value" in v ? v._value : v);
+  const b = l.bounds;
+  return { left: N(b.left), top: N(b.top), right: N(b.right), bottom: N(b.bottom) };
+};
+
+const clamp = (v: number, lo: number, hi: number) =>
+  Math.max(Math.min(lo, hi), Math.min(Math.max(lo, hi), v));
+
+export async function adaptDesignToSizes(
+  sizes: SizeOption[],
+  _cfg: Config,
+): Promise<{ created: number }> {
+  if (HOST !== "Photoshop") throw new Error("Adapt is Photoshop-only");
+  if (!sizes.length) throw new Error("Pick at least one size");
+  const ps = photoshop;
+
+  await ps.core.executeAsModal(
+    async () => {
+      const doc = ps.app.activeDocument;
+      const masterW = Number((doc as any).width);
+      const masterH = Number((doc as any).height);
+
+      const tops = (doc.layers as any[]).filter((l) => l && l.layers !== undefined);
+      const norm = (n: string) => n.toLowerCase().replace("@", "").trim();
+      const visualG = tops.find((l) => norm(l.name) === "visual");
+      const textG = tops.find((l) => norm(l.name) === "text");
+      if (!visualG) throw new Error('No "Visual" group in this document');
+
+      const childByName = (g: any, re: RegExp) =>
+        (g.layers as any[]).find((c) => re.test(c.name));
+      const focalL = childByName(visualG, /focal/i);
+      const safeL = textG ? childByName(textG, /safe/i) : null;
+      if (!focalL) throw new Error('No "focal" rectangle inside the Visual group');
+      const focal = layerBounds(focalL);
+      const safe = safeL ? layerBounds(safeL) : null;
+
+      const anchor = ps.constants.AnchorPosition.MIDDLECENTER;
+
+      // Duplicate a group, hide its guide rect, convert to a Smart Object.
+      const dupToSmartObject = async (group: any, guideRe: RegExp) => {
+        const dup = await group.duplicate();
+        try {
+          for (const k of dup.layers as any[]) if (guideRe.test(k.name)) k.visible = false;
+        } catch {
+          /* ignore */
+        }
+        await ps.action.batchPlay(
+          [{ _obj: "select", _target: [{ _ref: "layer", _id: dup.id }], makeVisible: false }],
+          {},
+        );
+        await ps.action.batchPlay([{ _obj: "newPlacedLayer" }], {});
+        return doc.activeLayers[0];
+      };
+
+      // Lay the new artboards in a middle-aligned row, clear to the right of the master.
+      let masterRight = 0;
+      for (const t of tops) {
+        try {
+          masterRight = Math.max(masterRight, layerBounds(t).right);
+        } catch {
+          /* ignore */
+        }
+      }
+      const gap = 200;
+      let x = Math.max(masterRight, masterW) + 600;
+      const maxH = Math.max(...sizes.map((s) => s.h));
+      const rowCy = maxH / 2;
+
+      for (const size of sizes) {
+        const W = size.w;
+        const H = size.h;
+        const ax = x;
+        const ay = rowCy - H / 2;
+
+        // --- Visual: cover-fit, keep `focal` centred in the frame ---
+        const vso = await dupToSmartObject(visualG, /focal/i);
+        {
+          const v = layerBounds(vso);
+          const Cx = (v.left + v.right) / 2;
+          const Cy = (v.top + v.bottom) / 2;
+          const s = Math.max(W / masterW, H / masterH);
+          await vso.scale(s * 100, s * 100, anchor);
+          const halfW = ((v.right - v.left) * s) / 2;
+          const halfH = ((v.bottom - v.top) * s) / 2;
+          const fx = Cx + ((focal.left + focal.right) / 2 - Cx) * s;
+          const fy = Cy + ((focal.top + focal.bottom) / 2 - Cy) * s;
+          let tx = ax + W / 2 - fx;
+          let ty = ay + H / 2 - fy;
+          // keep the frame fully covered
+          tx = clamp(tx, ax + W - (Cx + halfW), ax - (Cx - halfW));
+          ty = clamp(ty, ay + H - (Cy + halfH), ay - (Cy - halfH));
+          await vso.translate(tx, ty);
+        }
+
+        // --- Text: scale-to-fit, map `safe` to the same relative spot ---
+        let tsoId = 0;
+        if (textG && safe) {
+          const tso = await dupToSmartObject(textG, /safe/i);
+          tsoId = tso.id;
+          const t = layerBounds(tso);
+          const Cx = (t.left + t.right) / 2;
+          const Cy = (t.top + t.bottom) / 2;
+          const s = Math.min(W / masterW, H / masterH);
+          await tso.scale(s * 100, s * 100, anchor);
+          const sx = Cx + ((safe.left + safe.right) / 2 - Cx) * s;
+          const sy = Cy + ((safe.top + safe.bottom) / 2 - Cy) * s;
+          const rx = (safe.left + safe.right) / 2 / masterW;
+          const ry = (safe.top + safe.bottom) / 2 / masterH;
+          await tso.translate(ax + rx * W - sx, ay + ry * H - sy);
+        }
+
+        // --- Frame: select both SOs, make an artboard that wraps + clips them ---
+        await ps.action.batchPlay(
+          [{ _obj: "select", _target: [{ _ref: "layer", _id: vso.id }], makeVisible: false }],
+          {},
+        );
+        if (tsoId) {
+          await ps.action.batchPlay(
+            [
+              {
+                _obj: "select",
+                _target: [{ _ref: "layer", _id: tsoId }],
+                selectionModifier: { _enum: "selectionModifierType", _value: "addToSelection" },
+                makeVisible: false,
+              },
+            ],
+            {},
+          );
+        }
+        await ps.action.batchPlay(
+          [
+            {
+              _obj: "make",
+              _target: [{ _ref: "artboardSection" }],
+              artboardRect: { _obj: "classFloatRect", top: ay, left: ax, bottom: ay + H, right: ax + W },
+              using: { _obj: "artboardSection" },
+            },
+          ],
+          {},
+        );
+        try {
+          doc.activeLayers[0].name = `${size.label} ${W}x${H}`;
+        } catch {
+          /* ignore */
+        }
+        x += W + gap;
+      }
+    },
+    { commandName: "Adapt design to sizes" },
+  );
+  return { created: sizes.length };
+}
+
 /* ---------------- T&C writer ---------------- */
 
 /** Find a layer (recursing into groups) by exact name. */

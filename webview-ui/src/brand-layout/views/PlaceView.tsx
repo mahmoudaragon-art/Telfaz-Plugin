@@ -29,6 +29,7 @@ interface Props {
   onCloseVerify: () => void;
   onPlace: () => void;
   onCreateArtboards: (sizeValues: string[]) => void;
+  onAdaptDesign: (sizeValues: string[]) => void;
   onWriteTc: (text: string, dir: "rtl" | "ltr", anchor: string) => void;
   onUpdateTc: (text: string, anchor: string) => void;
 }
@@ -59,6 +60,7 @@ export const PlaceView: React.FC<Props> = ({
   onCloseVerify,
   onPlace,
   onCreateArtboards,
+  onAdaptDesign,
   onWriteTc,
   onUpdateTc,
 }) => {
@@ -142,11 +144,12 @@ export const PlaceView: React.FC<Props> = ({
     !selection.tc ||
     (mode === "single" ? !selection.size : checked.size === 0);
 
-  const handleCreate = () => {
-    const sizes =
-      mode === "single" ? (selection.size ? [selection.size] : []) : Array.from(checked);
-    onCreateArtboards(sizes);
-  };
+  const selectedSizes = () =>
+    mode === "single" ? (selection.size ? [selection.size] : []) : Array.from(checked);
+
+  const handleCreate = () => onCreateArtboards(selectedSizes());
+  const handleAdapt = () => onAdaptDesign(selectedSizes());
+  const adaptDisabled = mode === "single" ? !selection.size : checked.size === 0;
 
   return (
     <section className="view active">
@@ -385,6 +388,16 @@ export const PlaceView: React.FC<Props> = ({
               : `Create ${checked.size || ""} Artboard${checked.size === 1 ? "" : "s"} & Place`}
           </span>
         </button>
+        <button className="btn-secondary wide" disabled={adaptDisabled} onClick={handleAdapt}>
+          <ArtboardIcon />
+          {mode === "single"
+            ? "Adapt Design to Size"
+            : `Adapt Design to ${checked.size || ""} Size${checked.size === 1 ? "" : "s"}`}
+        </button>
+      </div>
+      <div className="folder-hint">
+        Adapt works on the open master design — needs top groups <b>Visual</b> (with a{" "}
+        <b>focal</b> rect) and <b>Text</b> (with a <b>safe</b> rect).
       </div>
     </section>
   );

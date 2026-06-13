@@ -188,6 +188,25 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     }
   };
 
+  // Adapt the OPEN master design (Visual/Text groups + focal/safe guides) to the
+  // selected sizes — one framed artboard per size beside the master.
+  const handleAdaptDesign = async (sizeValues: string[]) => {
+    if (!hostName.toLowerCase().startsWith("photoshop"))
+      return setStatus("Adapt is Photoshop-only", "err");
+    if (!sizeValues.length) return setStatus("Select at least one size", "err");
+    const sizes = sizeValues
+      .map((sv) => cfg.sizes.find((s) => s.value === sv))
+      .filter((s): s is SizeOption => !!s);
+    if (!sizes.length) return setStatus("No valid sizes selected", "err");
+    setStatus(`Adapting to ${sizes.length} size${sizes.length === 1 ? "" : "s"} …`, "busy");
+    try {
+      const res = await api.adaptDesignToSizes(sizes, cfg);
+      setStatus(`Adapted ${res.created} size${res.created === 1 ? "" : "s"}`, "ok");
+    } catch (e: any) {
+      setStatus("Adapt failed: " + e.message, "err");
+    }
+  };
+
   const handleVerify = async () => {
     if (!connected) return setStatus("Connect the folder first", "err");
     setStatus("Scanning folder…", "busy");
@@ -351,6 +370,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
             onCloseVerify={() => setVerify(null)}
             onPlace={handlePlace}
             onCreateArtboards={handleCreateArtboards}
+            onAdaptDesign={handleAdaptDesign}
             onWriteTc={handleWriteTc}
             onUpdateTc={handleUpdateTc}
           />
