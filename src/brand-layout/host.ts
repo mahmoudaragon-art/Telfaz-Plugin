@@ -283,6 +283,7 @@ async function getArtboardRect(
 export async function createArtboardsDoc(
   items: { base: string; size: SizeOption; artboardName: string }[],
   cfg: Config,
+  tc?: TcWriteOptions,
 ): Promise<{ created: number; missing: string[] }> {
   if (HOST !== "Photoshop") throw new Error("Multi-artboard is Photoshop-only");
   if (!currentFolder) throw new Error("Connect the source folder first");
@@ -395,6 +396,27 @@ export async function createArtboardsDoc(
           ],
           { synchronousExecution: true } as any,
         );
+
+        // Write the T&C for THIS artboard right now, using its KNOWN rect (the
+        // one we just created it at — no stale-bounds problem).
+        if (tc) {
+          try {
+            if (abId) {
+              await ps.action.batchPlay(
+                [{ _obj: "select", _target: [{ _ref: "layer", _id: abId }], makeVisible: false }],
+                {},
+              );
+            }
+            await writeOneTcPS(
+              doc,
+              { left: x, top, right: x + w, bottom: top + h },
+              "T&C " + it.artboardName,
+              tc,
+            );
+          } catch (e) {
+            console.warn("T&C for artboard failed", e);
+          }
+        }
         x += w + gap;
       }
     },
