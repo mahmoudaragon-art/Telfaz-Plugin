@@ -247,6 +247,34 @@ async function createDocIllustrator(size: SizeOption, name: string) {
   }
 }
 
+/** Read an artboard's true frame rect (left/top/right/bottom) by layer id. */
+async function getArtboardRect(
+  abId: number,
+): Promise<{ left: number; top: number; right: number; bottom: number } | null> {
+  const ps = photoshop;
+  try {
+    const r = await ps.action.batchPlay(
+      [
+        {
+          _obj: "get",
+          _target: [
+            { _ref: "property", _property: "artboard" },
+            { _ref: "layer", _id: abId },
+          ],
+        },
+      ],
+      {},
+    );
+    const ar = r?.[0]?.artboard?.artboardRect || r?.[0]?.artboardRect;
+    if (ar && typeof ar.left === "number") {
+      return { left: ar.left, top: ar.top, right: ar.right, bottom: ar.bottom };
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 /**
  * Create ONE Photoshop document with an artboard per size, laid out in a row.
  * Each artboard is named "{Category} {Size} WxH" with its asset placed (Media
@@ -314,24 +342,22 @@ export async function createArtboardsDoc(
           {},
         );
         let abId = 0;
-        let abRect: { left: number; top: number; right: number; bottom: number } | null = null;
         try {
           const ab = doc.activeLayers[0];
           ab.name = it.artboardName;
           abId = ab.id;
-          const bb = ab.bounds; // the artboard frame (empty so far)
-          abRect = { left: bb.left, top: bb.top, right: bb.right, bottom: bb.bottom };
         } catch {
           /* ignore */
         }
+        // The artboard's TRUE frame (fallback to the rect we asked for).
+        const abRect =
+          (abId && (await getArtboardRect(abId))) || { left: x, top: 0, right: x + w, bottom: h };
 
-        // Focus the view on this artboard (makeVisible) AND make it the active
-        // artboard. The place may follow the view, but we re-center the asset on
-        // the artboard's actual bounds afterwards, so the final position is exact.
+        // Make this the active artboard so the place targets it (no view scroll).
         if (abId) {
           try {
             await ps.action.batchPlay(
-              [{ _obj: "select", _target: [{ _ref: "layer", _id: abId }], makeVisible: true }],
+              [{ _obj: "select", _target: [{ _ref: "layer", _id: abId }], makeVisible: false }],
               {},
             );
           } catch {
@@ -627,10 +653,12 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
       const doc = ps.app.activeDocument;
       const artboards = getArtboards(doc);
       if (artboards.length) {
-        // A T&C in EVERY artboard, positioned within each artboard's own bounds.
+        // A T&C in EVERY artboard, positioned within each artboard's own frame.
         for (const ab of artboards) {
+          const real = await getArtboardRect(ab.id);
           const bb = ab.bounds;
-          const rect = { left: bb.left, top: bb.top, right: bb.right, bottom: bb.bottom };
+          const rect =
+            real || { left: bb.left, top: bb.top, right: bb.right, bottom: bb.bottom };
           // Select the artboard so the new text layer belongs to it.
           try {
             await ps.action.batchPlay(
