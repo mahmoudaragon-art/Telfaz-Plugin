@@ -637,48 +637,62 @@ async function writeOneTcPS(
     console.warn("paragraph direction not applied", e);
   }
 
-  // 4) Position within `rect` (the artboard or the whole doc), safe margins.
-  //    Read the layer's real bounds and move it with the recorded `move`/offset
-  //    descriptor (the DOM .translate()/.bounds on a just-restyled layer is
-  //    unreliable and was leaving the text at its default top-left spot).
-  const b = (await getActiveLayerBounds(doc)) ||
-    (() => {
-      const bb = layer.bounds;
-      return { left: bb.left, top: bb.top, right: bb.right, bottom: bb.bottom };
-    })();
+  // 4) Position within `rect` (the artboard or the whole doc) with safe margins.
+  //    Move ITERATIVELY: when a layer crosses into an artboard from outside,
+  //    Photoshop clamps it at the artboard edge, so a single move lands short.
+  //    Re-reading bounds and moving again lets PS capture the layer into the
+  //    artboard, after which the next move travels freely. Converges in ~2-3
+  //    passes and, as a bonus, nests the text into the artboard's layer group.
   const mx = marginXPx ?? 70;
   const my = marginYPx ?? 80;
-  const lw = b.right - b.left;
-  const lh = b.bottom - b.top;
-  let tx: number, ty: number;
-  if (anchor.indexOf("bottom") > -1) ty = rect.bottom - my - lh - b.top;
-  else if (anchor.indexOf("top") > -1) ty = rect.top + my - b.top;
-  else ty = (rect.top + rect.bottom - lh) / 2 - b.top;
-  if (anchor.indexOf("right") > -1) tx = rect.right - mx - lw - b.left;
-  else if (anchor.indexOf("left") > -1) tx = rect.left + mx - b.left;
-  else tx = (rect.left + rect.right - lw) / 2 - b.left;
-  try {
-    await ps.action.batchPlay(
-      [
-        {
-          _obj: "move",
-          _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }],
-          to: {
-            _obj: "offset",
-            horizontal: { _unit: "pixelsUnit", _value: tx },
-            vertical: { _unit: "pixelsUnit", _value: ty },
-          },
-          _options: { dialogOptions: "dontDisplay" },
-        },
-      ],
-      {} as any,
-    );
-  } catch (e) {
-    console.warn("T&C move not applied", e);
+  for (let i = 0; i < 6; i++) {
+    const b =
+      (await getActiveLayerBounds(doc)) ||
+      (() => {
+        try {
+          const bb = layer.bounds;
+          return { left: bb.left, top: bb.top, right: bb.right, bottom: bb.bottom };
+        } catch {
+          return null;
+        }
+      })();
+    if (!b) break;
+    const lw = b.right - b.left;
+    const lh = b.bottom - b.top;
+    let targetTop: number, targetLeft: number;
+    if (anchor.indexOf("bottom") > -1) targetTop = rect.bottom - my - lh;
+    else if (anchor.indexOf("top") > -1) targetTop = rect.top + my;
+    else targetTop = (rect.top + rect.bottom - lh) / 2;
+    if (anchor.indexOf("right") > -1) targetLeft = rect.right - mx - lw;
+    else if (anchor.indexOf("left") > -1) targetLeft = rect.left + mx;
+    else targetLeft = (rect.left + rect.right - lw) / 2;
+    const dx = targetLeft - b.left;
+    const dy = targetTop - b.top;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) break;
     try {
-      layer.translate(tx, ty);
-    } catch {
-      /* ignore */
+      await ps.action.batchPlay(
+        [
+          {
+            _obj: "move",
+            _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }],
+            to: {
+              _obj: "offset",
+              horizontal: { _unit: "pixelsUnit", _value: dx },
+              vertical: { _unit: "pixelsUnit", _value: dy },
+            },
+            _options: { dialogOptions: "dontDisplay" },
+          },
+        ],
+        {} as any,
+      );
+    } catch (e) {
+      console.warn("T&C move not applied", e);
+      try {
+        layer.translate(dx, dy);
+      } catch {
+        /* ignore */
+      }
+      break;
     }
   }
 }
@@ -717,82 +731,31 @@ async function getActiveLayerBounds(
   return null;
 }
 
-/**
- * Resolve the artboard the user currently has selected. Walks up from the
- * active layer (the placed asset / a child, or the artboard group itself) until
- * an ancestor resolves as an artboard. Returns null if nothing is selected or
- * the selection isn't inside any artboard.
- */
-async function getActiveArtboard(
-  doc: any,
-): Promise<
-  | {
-      id: number;
-      name: string;
-      rect: { left: number; top: number; right: number; bottom: number };
-    }
-  | null
-> {
-  let node: any = null;
-  try {
-    node = doc.activeLayers?.[0];
-  } catch {
-    /* ignore */
-  }
-  let guard = 0;
-  while (node && guard++ < 8) {
-    let id: number | undefined;
-    try {
-      id = node.id;
-    } catch {
-      /* ignore */
-    }
-    if (typeof id === "number") {
-      const rect = await getArtboardRect(id);
-      if (rect) {
-        let name = "Artboard";
-        try {
-          name = node.name;
-        } catch {
-          /* ignore */
-        }
-        return { id, name, rect };
-      }
-    }
-    try {
-      node = node.parent;
-    } catch {
-      node = null;
-    }
-  }
-  return null;
-}
-
 async function writeTcPhotoshop(opts: TcWriteOptions) {
   const ps = photoshop;
   await ps.core.executeAsModal(
     async () => {
       const doc = ps.app.activeDocument;
-      // Step mode: write ONE T&C into the artboard the user has selected.
-      const active = await getActiveArtboard(doc);
-      if (active) {
-        try {
-          await ps.action.batchPlay(
-            [{ _obj: "select", _target: [{ _ref: "layer", _id: active.id }], makeVisible: false }],
-            {},
-          );
-        } catch {
-          /* ignore */
-        }
-        await writeOneTcPS(doc, active.rect, "T&C " + active.name, opts);
-        return;
-      }
-      // Nothing selected inside an artboard. If the doc has artboards, ask the
-      // user to pick one; otherwise treat the whole canvas as the frame.
       const artboards = await getArtboardLayers(doc);
       if (artboards.length) {
-        throw new Error("Select an artboard first, then press Write T&C");
+        // A T&C in EVERY artboard, each positioned within its own frame. The
+        // iterative move inside writeOneTcPS handles the artboard-edge clamp and
+        // nests each text into its artboard.
+        for (const ab of artboards) {
+          // Select the artboard so the new text layer starts in its context.
+          try {
+            await ps.action.batchPlay(
+              [{ _obj: "select", _target: [{ _ref: "layer", _id: ab.id }], makeVisible: false }],
+              {},
+            );
+          } catch {
+            /* ignore */
+          }
+          await writeOneTcPS(doc, ab.rect, "T&C " + ab.name, opts);
+        }
+        return;
       }
+      // Flat document (no artboards): treat the whole canvas as the frame.
       const rect = { left: 0, top: 0, right: doc.width, bottom: doc.height };
       await writeOneTcPS(doc, rect, "T&C " + (opts.artboardName || doc.name), opts);
     },
