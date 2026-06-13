@@ -313,13 +313,29 @@ export async function createArtboardsDoc(
           ],
           {},
         );
+        let abId = 0;
         try {
-          doc.activeLayers[0].name = it.artboardName;
+          const ab = doc.activeLayers[0];
+          ab.name = it.artboardName;
+          abId = ab.id;
         } catch {
           /* ignore */
         }
 
-        // Place the asset (Media Box) and center it on this artboard.
+        // Focus the view on this artboard before placing (so the place lands on
+        // it, and the canvas follows along visibly).
+        if (abId) {
+          try {
+            await ps.action.batchPlay(
+              [{ _obj: "select", _target: [{ _ref: "layer", _id: abId }], makeVisible: true }],
+              {},
+            );
+          } catch {
+            /* ignore */
+          }
+        }
+
+        // Place the asset (Media Box). It centers on the active artboard.
         const token = await fs.createSessionToken(it.entry);
         await ps.action.batchPlay(
           [
@@ -348,16 +364,6 @@ export async function createArtboardsDoc(
           ],
           { synchronousExecution: true } as any,
         );
-        try {
-          const layer = doc.activeLayers[0];
-          const b = layer.bounds;
-          layer.translate(
-            x + w / 2 - (b.left + b.right) / 2,
-            h / 2 - (b.top + b.bottom) / 2,
-          );
-        } catch {
-          /* ignore */
-        }
         x += w + gap;
       }
     },
