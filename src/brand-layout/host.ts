@@ -324,6 +324,8 @@ export async function createArtboardsDoc(
 
       const gap = 120;
       let x = 0;
+      // Middle-align: every artboard shares the first artboard's vertical centre.
+      const commonCenterY = resolved[0].size.h / 2;
       for (const it of resolved) {
         const w = it.size.w;
         const h = it.size.h;
@@ -349,10 +351,6 @@ export async function createArtboardsDoc(
         } catch {
           /* ignore */
         }
-        // The artboard's TRUE frame (fallback to the rect we asked for).
-        const abRect =
-          (abId && (await getArtboardRect(abId))) || { left: x, top: 0, right: x + w, bottom: h };
-
         // Make this the active artboard so the place targets it (no view scroll).
         if (abId) {
           try {
@@ -395,15 +393,25 @@ export async function createArtboardsDoc(
           { synchronousExecution: true } as any,
         );
 
-        // Center the placed asset on the artboard's ACTUAL frame (deterministic;
-        // a no-op when the place already centered it, but fixes tall artboards).
-        if (abRect) {
+        // Middle-align this artboard with the others (moves the artboard AND its
+        // content). Taller artboards (e.g. Vertical) shift up to share the centre.
+        const offsetY = commonCenterY - h / 2;
+        if (abId && offsetY !== 0) {
           try {
-            const layer = doc.activeLayers[0];
-            const b = layer.bounds;
-            layer.translate(
-              (abRect.left + abRect.right) / 2 - (b.left + b.right) / 2,
-              (abRect.top + abRect.bottom) / 2 - (b.top + b.bottom) / 2,
+            await ps.action.batchPlay(
+              [
+                { _obj: "select", _target: [{ _ref: "layer", _id: abId }], makeVisible: false },
+                {
+                  _obj: "move",
+                  _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }],
+                  to: {
+                    _obj: "offset",
+                    horizontal: { _unit: "pixelsUnit", _value: 0 },
+                    vertical: { _unit: "pixelsUnit", _value: offsetY },
+                  },
+                },
+              ],
+              {},
             );
           } catch {
             /* ignore */
