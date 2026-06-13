@@ -657,32 +657,84 @@ async function writeOneTcPS(
   }
 }
 
+/**
+ * Resolve the artboard the user currently has selected. Walks up from the
+ * active layer (the placed asset / a child, or the artboard group itself) until
+ * an ancestor resolves as an artboard. Returns null if nothing is selected or
+ * the selection isn't inside any artboard.
+ */
+async function getActiveArtboard(
+  doc: any,
+): Promise<
+  | {
+      id: number;
+      name: string;
+      rect: { left: number; top: number; right: number; bottom: number };
+    }
+  | null
+> {
+  let node: any = null;
+  try {
+    node = doc.activeLayers?.[0];
+  } catch {
+    /* ignore */
+  }
+  let guard = 0;
+  while (node && guard++ < 8) {
+    let id: number | undefined;
+    try {
+      id = node.id;
+    } catch {
+      /* ignore */
+    }
+    if (typeof id === "number") {
+      const rect = await getArtboardRect(id);
+      if (rect) {
+        let name = "Artboard";
+        try {
+          name = node.name;
+        } catch {
+          /* ignore */
+        }
+        return { id, name, rect };
+      }
+    }
+    try {
+      node = node.parent;
+    } catch {
+      node = null;
+    }
+  }
+  return null;
+}
+
 async function writeTcPhotoshop(opts: TcWriteOptions) {
   const ps = photoshop;
   await ps.core.executeAsModal(
     async () => {
       const doc = ps.app.activeDocument;
+      // Step mode: write ONE T&C into the artboard the user has selected.
+      const active = await getActiveArtboard(doc);
+      if (active) {
+        try {
+          await ps.action.batchPlay(
+            [{ _obj: "select", _target: [{ _ref: "layer", _id: active.id }], makeVisible: false }],
+            {},
+          );
+        } catch {
+          /* ignore */
+        }
+        await writeOneTcPS(doc, active.rect, "T&C " + active.name, opts);
+        return;
+      }
+      // Nothing selected inside an artboard. If the doc has artboards, ask the
+      // user to pick one; otherwise treat the whole canvas as the frame.
       const artboards = await getArtboardLayers(doc);
       if (artboards.length) {
-        // A T&C in EVERY artboard, positioned within each artboard's own frame
-        // (the rect comes straight from artboard.artboardRect — never stale here
-        // because artboards are created pre-centered and never moved).
-        for (const ab of artboards) {
-          // Select the artboard so the new text layer belongs to it.
-          try {
-            await ps.action.batchPlay(
-              [{ _obj: "select", _target: [{ _ref: "layer", _id: ab.id }], makeVisible: false }],
-              {},
-            );
-          } catch {
-            /* ignore */
-          }
-          await writeOneTcPS(doc, ab.rect, "T&C " + ab.name, opts);
-        }
-      } else {
-        const rect = { left: 0, top: 0, right: doc.width, bottom: doc.height };
-        await writeOneTcPS(doc, rect, "T&C " + (opts.artboardName || doc.name), opts);
+        throw new Error("Select an artboard first, then press Write T&C");
       }
+      const rect = { left: 0, top: 0, right: doc.width, bottom: doc.height };
+      await writeOneTcPS(doc, rect, "T&C " + (opts.artboardName || doc.name), opts);
     },
     { commandName: "Write T&C" },
   );
