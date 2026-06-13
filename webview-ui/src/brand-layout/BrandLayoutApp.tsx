@@ -140,37 +140,8 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     }
   };
 
-  /** Build the T&C write options for the current client/language. */
-  const buildTcOpts = (
-    text: string,
-    dir: "rtl" | "ltr",
-    anchor: string,
-  ): TcWriteOptions => {
-    const client = selection.client || "";
-    const isAr = selection.lang === "AR";
-    const cs = cfg.tcClientStyles?.[client];
-    const fallback: TcFont = {
-      family: isAr ? cfg.tcStyle.fontAR : cfg.tcStyle.fontEN,
-      sizePx: cfg.tcStyle.sizePt,
-      color: cfg.tcStyle.color,
-    };
-    return {
-      text,
-      dir,
-      anchor,
-      marginXPx: cfg.tcStyle.safeMarginXPx,
-      marginYPx: cfg.tcStyle.safeMarginYPx,
-      font: cs ? (isAr ? cs.ar : cs.en) : fallback,
-      latinFont: isAr ? cs?.latin : undefined,
-      layout: (client && cfg.tcLayout?.[client]) || undefined,
-    };
-  };
-
   /** Create artboards for the selected size(s) — Photoshop: all in one PSD. */
-  const handleCreateArtboards = async (
-    sizeValues: string[],
-    tc?: { text: string; dir: "rtl" | "ltr"; anchor: string },
-  ) => {
+  const handleCreateArtboards = async (sizeValues: string[]) => {
     if (!connected) return setStatus("Connect the source folder first", "err");
     if (!selection.client || !selection.lang || !selection.tc)
       return setStatus("Pick client, language and T&C first", "err");
@@ -187,13 +158,11 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     }
     if (!items.length) return setStatus("No valid sizes selected", "err");
 
-    const tcOpts = tc && tc.text.trim() ? buildTcOpts(tc.text, tc.dir, tc.anchor) : undefined;
-
     setStatus(`Creating ${items.length} artboard${items.length === 1 ? "" : "s"} …`, "busy");
     try {
       if (hostName.toLowerCase().startsWith("photoshop")) {
-        // One PSD, an artboard per size (+ a T&C in each if provided).
-        const res = await api.createArtboardsDoc(items, cfg, tcOpts);
+        // One PSD, an artboard per size.
+        const res = await api.createArtboardsDoc(items, cfg);
         setStatus(
           res.missing.length
             ? `Created ${res.created}, missing: ${res.missing.join(", ")}`
@@ -236,6 +205,18 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     if (!t) return setStatus("T&C text is empty", "err");
     setStatus("Writing T&C …", "busy");
     try {
+      const client = selection.client || "";
+      const isAr = selection.lang === "AR";
+      const cs = cfg.tcClientStyles?.[client];
+      // Per-client font for this language, else fall back to the global tcStyle.
+      const fallback: TcFont = {
+        family: isAr ? cfg.tcStyle.fontAR : cfg.tcStyle.fontEN,
+        sizePx: cfg.tcStyle.sizePt,
+        color: cfg.tcStyle.color,
+      };
+      const font = cs ? (isAr ? cs.ar : cs.en) : fallback;
+      const latinFont = isAr ? cs?.latin : undefined;
+      const layout = (client && cfg.tcLayout?.[client]) || undefined;
       // Name the T&C layer after the artboard (so it's not "T&C Untitled-1").
       const selSize = cfg.sizes.find((s) => s.value === selection.size);
       const catLabel = selSize
@@ -244,7 +225,18 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
       const artboardName = selSize
         ? `${catLabel} ${selSize.label} ${selSize.w}X${selSize.h}`.trim()
         : undefined;
-      await api.writeTc({ ...buildTcOpts(t, dir, anchor), artboardName });
+      const opts: TcWriteOptions = {
+        text: t,
+        dir,
+        anchor,
+        marginXPx: cfg.tcStyle.safeMarginXPx,
+        marginYPx: cfg.tcStyle.safeMarginYPx,
+        artboardName,
+        font,
+        latinFont,
+        layout,
+      };
+      await api.writeTc(opts);
       setStatus("T&C written", "ok");
     } catch (e: any) {
       setStatus("T&C failed: " + e.message, "err");

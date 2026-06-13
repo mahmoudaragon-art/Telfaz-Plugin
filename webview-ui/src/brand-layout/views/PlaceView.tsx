@@ -28,10 +28,7 @@ interface Props {
   verify: VerifyResult | null;
   onCloseVerify: () => void;
   onPlace: () => void;
-  onCreateArtboards: (
-    sizeValues: string[],
-    tc?: { text: string; dir: "rtl" | "ltr"; anchor: string },
-  ) => void;
+  onCreateArtboards: (sizeValues: string[]) => void;
   onWriteTc: (text: string, dir: "rtl" | "ltr", anchor: string) => void;
   onUpdateTc: (text: string, anchor: string) => void;
 }
@@ -148,9 +145,7 @@ export const PlaceView: React.FC<Props> = ({
   const handleCreate = () => {
     const sizes =
       mode === "single" ? (selection.size ? [selection.size] : []) : Array.from(checked);
-    // When T&C is on, send the text so each artboard gets its T&C during creation.
-    const tc = showTc && tcText.trim() ? { text: tcText, dir, anchor } : undefined;
-    onCreateArtboards(sizes, tc);
+    onCreateArtboards(sizes);
   };
 
   return (
