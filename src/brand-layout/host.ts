@@ -426,10 +426,12 @@ const clamp = (v: number, lo: number, hi: number) =>
 export async function adaptDesignToSizes(
   sizes: SizeOption[],
   _cfg: Config,
-): Promise<{ created: number }> {
+): Promise<{ created: number; failed: string[] }> {
   if (HOST !== "Photoshop") throw new Error("Adapt is Photoshop-only");
   if (!sizes.length) throw new Error("Pick at least one size");
   const ps = photoshop;
+  let created = 0;
+  const failed: string[] = [];
 
   await ps.core.executeAsModal(
     async () => {
@@ -437,10 +439,16 @@ export async function adaptDesignToSizes(
       const masterW = Number((doc as any).width);
       const masterH = Number((doc as any).height);
 
-      const tops = (doc.layers as any[]).filter((l) => l && l.layers !== undefined);
       const norm = (n: string) => n.toLowerCase().replace("@", "").trim();
-      const visualG = tops.find((l) => norm(l.name) === "visual");
-      const textG = tops.find((l) => norm(l.name) === "text");
+      // Re-query each call: making an artboard restructures the layer tree and
+      // invalidates earlier DOM Layer references (that was the iter-2 failure).
+      const findGroup = (key: string) =>
+        (doc.layers as any[])
+          .filter((l) => l && l.layers !== undefined)
+          .find((l) => norm(l.name) === key);
+      const tops = (doc.layers as any[]).filter((l) => l && l.layers !== undefined);
+      const visualG = findGroup("visual");
+      const textG = findGroup("text");
       if (!visualG) throw new Error('No "Visual" group in this document');
 
       const childByName = (g: any, re: RegExp) =>
@@ -488,84 +496,95 @@ export async function adaptDesignToSizes(
         const H = size.h;
         const ax = x;
         const ay = rowCy - H / 2;
+        x += W + gap;
+        try {
+          const vG = findGroup("visual");
+          if (!vG) throw new Error("lost Visual group");
+          const tG = findGroup("text");
 
-        // --- Visual: cover-fit, keep `focal` centred in the frame ---
-        const vso = await dupToSmartObject(visualG, /focal/i);
-        {
-          const v = layerBounds(vso);
-          const Cx = (v.left + v.right) / 2;
-          const Cy = (v.top + v.bottom) / 2;
-          const s = Math.max(W / masterW, H / masterH);
-          await vso.scale(s * 100, s * 100, anchor);
-          const halfW = ((v.right - v.left) * s) / 2;
-          const halfH = ((v.bottom - v.top) * s) / 2;
-          const fx = Cx + ((focal.left + focal.right) / 2 - Cx) * s;
-          const fy = Cy + ((focal.top + focal.bottom) / 2 - Cy) * s;
-          let tx = ax + W / 2 - fx;
-          let ty = ay + H / 2 - fy;
-          // keep the frame fully covered
-          tx = clamp(tx, ax + W - (Cx + halfW), ax - (Cx - halfW));
-          ty = clamp(ty, ay + H - (Cy + halfH), ay - (Cy - halfH));
-          await vso.translate(tx, ty);
-        }
+          // --- Visual: cover-fit, keep `focal` centred in the frame ---
+          const vso = await dupToSmartObject(vG, /focal/i);
+          {
+            const v = layerBounds(vso);
+            const Cx = (v.left + v.right) / 2;
+            const Cy = (v.top + v.bottom) / 2;
+            const s = Math.max(W / masterW, H / masterH);
+            await vso.scale(s * 100, s * 100, anchor);
+            const halfW = ((v.right - v.left) * s) / 2;
+            const halfH = ((v.bottom - v.top) * s) / 2;
+            const fx = Cx + ((focal.left + focal.right) / 2 - Cx) * s;
+            const fy = Cy + ((focal.top + focal.bottom) / 2 - Cy) * s;
+            let tx = ax + W / 2 - fx;
+            let ty = ay + H / 2 - fy;
+            tx = clamp(tx, ax + W - (Cx + halfW), ax - (Cx - halfW));
+            ty = clamp(ty, ay + H - (Cy + halfH), ay - (Cy - halfH));
+            await vso.translate(tx, ty);
+          }
+          const vsoId = vso.id;
 
-        // --- Text: scale-to-fit, map `safe` to the same relative spot ---
-        let tsoId = 0;
-        if (textG && safe) {
-          const tso = await dupToSmartObject(textG, /safe/i);
-          tsoId = tso.id;
-          const t = layerBounds(tso);
-          const Cx = (t.left + t.right) / 2;
-          const Cy = (t.top + t.bottom) / 2;
-          const s = Math.min(W / masterW, H / masterH);
-          await tso.scale(s * 100, s * 100, anchor);
-          const sx = Cx + ((safe.left + safe.right) / 2 - Cx) * s;
-          const sy = Cy + ((safe.top + safe.bottom) / 2 - Cy) * s;
-          const rx = (safe.left + safe.right) / 2 / masterW;
-          const ry = (safe.top + safe.bottom) / 2 / masterH;
-          await tso.translate(ax + rx * W - sx, ay + ry * H - sy);
-        }
+          // --- Text: scale-to-fit, map `safe` to the same relative spot ---
+          let tsoId = 0;
+          if (tG && safe) {
+            const tso = await dupToSmartObject(tG, /safe/i);
+            tsoId = tso.id;
+            const t = layerBounds(tso);
+            const Cx = (t.left + t.right) / 2;
+            const Cy = (t.top + t.bottom) / 2;
+            const s = Math.min(W / masterW, H / masterH);
+            await tso.scale(s * 100, s * 100, anchor);
+            const sx = Cx + ((safe.left + safe.right) / 2 - Cx) * s;
+            const sy = Cy + ((safe.top + safe.bottom) / 2 - Cy) * s;
+            const rx = (safe.left + safe.right) / 2 / masterW;
+            const ry = (safe.top + safe.bottom) / 2 / masterH;
+            await tso.translate(ax + rx * W - sx, ay + ry * H - sy);
+          }
 
-        // --- Frame: select both SOs, make an artboard that wraps + clips them ---
-        await ps.action.batchPlay(
-          [{ _obj: "select", _target: [{ _ref: "layer", _id: vso.id }], makeVisible: false }],
-          {},
-        );
-        if (tsoId) {
+          // --- Frame: select both SOs, make an artboard that wraps + clips them ---
+          await ps.action.batchPlay(
+            [{ _obj: "select", _target: [{ _ref: "layer", _id: vsoId }], makeVisible: false }],
+            {},
+          );
+          if (tsoId) {
+            await ps.action.batchPlay(
+              [
+                {
+                  _obj: "select",
+                  _target: [{ _ref: "layer", _id: tsoId }],
+                  selectionModifier: { _enum: "selectionModifierType", _value: "addToSelection" },
+                  makeVisible: false,
+                },
+              ],
+              {},
+            );
+          }
           await ps.action.batchPlay(
             [
               {
-                _obj: "select",
-                _target: [{ _ref: "layer", _id: tsoId }],
-                selectionModifier: { _enum: "selectionModifierType", _value: "addToSelection" },
-                makeVisible: false,
+                _obj: "make",
+                _target: [{ _ref: "artboardSection" }],
+                artboardRect: { _obj: "classFloatRect", top: ay, left: ax, bottom: ay + H, right: ax + W },
+                using: { _obj: "artboardSection" },
               },
             ],
             {},
           );
+          try {
+            doc.activeLayers[0].name = `${size.label} ${W}x${H}`;
+          } catch {
+            /* ignore */
+          }
+          created++;
+        } catch (e: any) {
+          const msg =
+            (e && e.message) || (typeof e === "string" ? e : JSON.stringify(e)) || "unknown";
+          failed.push(`${size.label}: ${msg}`);
         }
-        await ps.action.batchPlay(
-          [
-            {
-              _obj: "make",
-              _target: [{ _ref: "artboardSection" }],
-              artboardRect: { _obj: "classFloatRect", top: ay, left: ax, bottom: ay + H, right: ax + W },
-              using: { _obj: "artboardSection" },
-            },
-          ],
-          {},
-        );
-        try {
-          doc.activeLayers[0].name = `${size.label} ${W}x${H}`;
-        } catch {
-          /* ignore */
-        }
-        x += W + gap;
       }
     },
     { commandName: "Adapt design to sizes" },
   );
-  return { created: sizes.length };
+  if (!created) throw new Error(failed.join(" · ") || "Nothing adapted");
+  return { created, failed };
 }
 
 /* ---------------- T&C writer ---------------- */

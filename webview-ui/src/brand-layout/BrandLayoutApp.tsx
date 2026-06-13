@@ -201,9 +201,14 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     setStatus(`Adapting to ${sizes.length} size${sizes.length === 1 ? "" : "s"} …`, "busy");
     try {
       const res = await api.adaptDesignToSizes(sizes, cfg);
-      setStatus(`Adapted ${res.created} size${res.created === 1 ? "" : "s"}`, "ok");
+      setStatus(
+        res.failed.length
+          ? `Adapted ${res.created}, failed: ${res.failed.join(" · ")}`
+          : `Adapted ${res.created} size${res.created === 1 ? "" : "s"}`,
+        res.failed.length ? "err" : "ok",
+      );
     } catch (e: any) {
-      setStatus("Adapt failed: " + e.message, "err");
+      setStatus("Adapt failed: " + (e?.message || e), "err");
     }
   };
 
