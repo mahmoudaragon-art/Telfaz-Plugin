@@ -451,47 +451,47 @@ export async function adaptDesignToSizes(
       const textG = findGroup("text");
       if (!visualG) throw new Error('No "Visual" group in this document');
 
-      const childByName = (g: any, re: RegExp) =>
+      const childMatch = (g: any, re: RegExp) =>
         (g.layers as any[]).find((c) => re.test(c.name));
-      const focalL = childByName(visualG, /focal/i);
-      const safeL = textG ? childByName(textG, /safe/i) : null;
-      if (!focalL) throw new Error('No "focal" rectangle inside the Visual group');
-      const focal = layerBounds(focalL);
-      const safe = safeL ? layerBounds(safeL) : null;
+      // The content layer = the group's child that ISN'T the guide rect (your
+      // Visual/Text Smart Object).
+      const contentLayer = (g: any, guideRe: RegExp) =>
+        (g.layers as any[]).find((c) => !guideRe.test(c.name));
 
-      // Capture the group IDs now (the DOM tree is unreliable once an artboard is
-      // made), and hide the guide rects in the master so duplicates never show
-      // them. Visibility is restored at the end; copies keep whatever state they
-      // were duplicated with, so this doesn't affect already-built artboards.
-      const visualId: number = visualG.id;
-      const textId: number | null = textG ? textG.id : null;
-      try {
-        focalL.visible = false;
-      } catch {
-        /* ignore */
-      }
-      try {
-        if (safeL) safeL.visible = false;
-      } catch {
-        /* ignore */
+      const focalL = childMatch(visualG, /focal/i);
+      if (!focalL) throw new Error('No "focal" rectangle inside the Visual group');
+      const visualContent = contentLayer(visualG, /focal/i);
+      if (!visualContent) throw new Error("No content layer inside the Visual group");
+      const focal = layerBounds(focalL);
+      const visualSOId: number = visualContent.id;
+
+      let safe: Box | null = null;
+      let textSOId: number | null = null;
+      if (textG) {
+        const safeL = childMatch(textG, /safe/i);
+        const textContent = contentLayer(textG, /safe/i);
+        if (safeL && textContent) {
+          safe = layerBounds(safeL);
+          textSOId = textContent.id;
+        }
       }
 
       const anchor = ps.constants.AnchorPosition.MIDDLECENTER;
 
-      // Duplicate a group BY ID (batchPlay, no DOM lookup) and convert to a
-      // Smart Object so it scales/moves as one clean unit.
-      const dupToSmartObject = async (groupId: number) => {
+      // Duplicate a content layer (the Smart Object) BY ID. The copy lands at the
+      // master position and becomes the active layer — no group conversion, no
+      // guide-hiding (the guides are never copied), no DOM tree lookups in-loop.
+      const dupSO = async (soId: number) => {
         await ps.action.batchPlay(
           [
             {
               _obj: "duplicate",
-              _target: [{ _ref: "layer", _id: groupId }],
+              _target: [{ _ref: "layer", _id: soId }],
               _options: { dialogOptions: "dontDisplay" },
             },
           ],
           {},
         );
-        await ps.action.batchPlay([{ _obj: "newPlacedLayer" }], {});
         return doc.activeLayers[0];
       };
 
@@ -517,7 +517,7 @@ export async function adaptDesignToSizes(
         x += W + gap;
         try {
           // --- Visual: cover-fit, keep `focal` centred in the frame ---
-          const vso = await dupToSmartObject(visualId);
+          const vso = await dupSO(visualSOId);
           {
             const v = layerBounds(vso);
             const Cx = (v.left + v.right) / 2;
@@ -538,8 +538,8 @@ export async function adaptDesignToSizes(
 
           // --- Text: scale-to-fit, map `safe` to the same relative spot ---
           let tsoId = 0;
-          if (textId && safe) {
-            const tso = await dupToSmartObject(textId);
+          if (textSOId && safe) {
+            const tso = await dupSO(textSOId);
             tsoId = tso.id;
             const t = layerBounds(tso);
             const Cx = (t.left + t.right) / 2;
@@ -593,18 +593,6 @@ export async function adaptDesignToSizes(
             (e && e.message) || (typeof e === "string" ? e : JSON.stringify(e)) || "unknown";
           failed.push(`${size.label}: ${msg}`);
         }
-      }
-
-      // Restore the master's guide rects (best-effort; refs may be stale).
-      try {
-        focalL.visible = true;
-      } catch {
-        /* ignore */
-      }
-      try {
-        if (safeL) safeL.visible = true;
-      } catch {
-        /* ignore */
       }
     },
     { commandName: "Adapt design to sizes" },
