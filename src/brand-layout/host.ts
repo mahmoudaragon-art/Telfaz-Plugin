@@ -138,26 +138,30 @@ async function placeLinkedPhotoshop(entry: any) {
   const ps = photoshop;
   await ps.core.executeAsModal(
     async () => {
+      const doc = ps.app.activeDocument;
       const token = await fs.createSessionToken(entry);
-      // For .ai/.pdf, crop to the Media Box (full page) — not the tight art box.
-      const desc = (withCrop: boolean): any => ({
-        _obj: "placeEvent",
-        null: { _path: token, _kind: "local" },
-        linked: true,
-        freeTransformCenterState: { _enum: "quadCenterState", _value: "QCSAverage" },
-        ...(withCrop
-          ? { as: { _obj: "PDFGenericFormat", crop: { _enum: "cropTo", _value: "media" } } }
-          : {}),
-        _options: { dialogOptions: "dontDisplay" },
-      });
+      await ps.action.batchPlay(
+        [
+          {
+            _obj: "placeEvent",
+            null: { _path: token, _kind: "local" },
+            linked: true,
+            freeTransformCenterState: { _enum: "quadCenterState", _value: "QCSAverage" },
+            _options: { dialogOptions: "dontDisplay" },
+          },
+        ],
+        { synchronousExecution: true } as any,
+      );
+      // Center the placed layer in the document.
       try {
-        await ps.action.batchPlay([desc(true)], { synchronousExecution: true } as any);
-      } catch (e) {
-        console.warn("place with Media Box crop failed; placing without crop", e);
-        const token2 = await fs.createSessionToken(entry);
-        const d = desc(false);
-        d.null._path = token2;
-        await ps.action.batchPlay([d], { synchronousExecution: true } as any);
+        const layer = doc.activeLayers[0];
+        const b = layer.bounds;
+        layer.translate(
+          doc.width / 2 - (b.left + b.right) / 2,
+          doc.height / 2 - (b.top + b.bottom) / 2,
+        );
+      } catch {
+        /* ignore */
       }
     },
     { commandName: "Place Linked Asset" },
@@ -356,8 +360,9 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
         return s;
       };
 
-      // 1) Create with size + colour + leading + alignment/direction (no font),
-      //    so those always apply even if a font name can't be resolved.
+      // 1) Create with size + colour + leading only (no font, no paragraph
+      //    style — alignment/direction are applied separately below via the
+      //    proven override-feature form).
       await ps.action.batchPlay(
         [
           {
@@ -369,23 +374,6 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
               textKey: text,
               textStyleRange: [
                 { _obj: "textStyleRange", from: 0, to: text.length, textStyle: style(font, false) },
-              ],
-              // Must be a ranged paragraph style — a bare paragraphStyle is ignored
-              // (which left the text left-aligned / wrong direction).
-              paragraphStyleRange: [
-                {
-                  _obj: "paragraphStyleRange",
-                  from: 0,
-                  to: text.length,
-                  paragraphStyle: {
-                    _obj: "paragraphStyle",
-                    align: { _enum: "alignmentType", _value: align },
-                    direction: {
-                      _enum: "direction",
-                      _value: dir === "rtl" ? "dirRightToLeft" : "dirLeftToRight",
-                    },
-                  },
-                },
               ],
             },
           },
@@ -456,7 +444,7 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
               _options: { dialogOptions: "dontDisplay" },
             },
           ],
-          { synchronousExecution: true } as any,
+          {} as any,
         );
       } catch (e) {
         console.warn("paragraph align not applied", e);
@@ -478,7 +466,7 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
               _options: { dialogOptions: "dontDisplay" },
             },
           ],
-          { synchronousExecution: true } as any,
+          {} as any,
         );
       } catch (e) {
         console.warn("paragraph direction not applied", e);
