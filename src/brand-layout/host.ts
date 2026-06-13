@@ -638,7 +638,14 @@ async function writeOneTcPS(
   }
 
   // 4) Position within `rect` (the artboard or the whole doc), safe margins.
-  const b = layer.bounds;
+  //    Read the layer's real bounds and move it with the recorded `move`/offset
+  //    descriptor (the DOM .translate()/.bounds on a just-restyled layer is
+  //    unreliable and was leaving the text at its default top-left spot).
+  const b = (await getActiveLayerBounds(doc)) ||
+    (() => {
+      const bb = layer.bounds;
+      return { left: bb.left, top: bb.top, right: bb.right, bottom: bb.bottom };
+    })();
   const mx = marginXPx ?? 70;
   const my = marginYPx ?? 80;
   const lw = b.right - b.left;
@@ -651,10 +658,63 @@ async function writeOneTcPS(
   else if (anchor.indexOf("left") > -1) tx = rect.left + mx - b.left;
   else tx = (rect.left + rect.right - lw) / 2 - b.left;
   try {
-    layer.translate(tx, ty);
+    await ps.action.batchPlay(
+      [
+        {
+          _obj: "move",
+          _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }],
+          to: {
+            _obj: "offset",
+            horizontal: { _unit: "pixelsUnit", _value: tx },
+            vertical: { _unit: "pixelsUnit", _value: ty },
+          },
+          _options: { dialogOptions: "dontDisplay" },
+        },
+      ],
+      {} as any,
+    );
+  } catch (e) {
+    console.warn("T&C move not applied", e);
+    try {
+      layer.translate(tx, ty);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/** Read the active layer's pixel bounds via batchPlay (unit-safe). */
+async function getActiveLayerBounds(
+  _doc: any,
+): Promise<{ left: number; top: number; right: number; bottom: number } | null> {
+  const ps = photoshop;
+  const num = (v: any): number => (v && typeof v === "object" ? v._value : v);
+  try {
+    const r = await ps.action.batchPlay(
+      [
+        {
+          _obj: "get",
+          _target: [
+            { _ref: "property", _property: "bounds" },
+            { _ref: "layer", _enum: "ordinal", _value: "targetEnum" },
+          ],
+        },
+      ],
+      {},
+    );
+    const bd = r?.[0]?.bounds;
+    if (bd && bd.left !== undefined) {
+      return {
+        left: num(bd.left),
+        top: num(bd.top),
+        right: num(bd.right),
+        bottom: num(bd.bottom),
+      };
+    }
   } catch {
     /* ignore */
   }
+  return null;
 }
 
 /**
