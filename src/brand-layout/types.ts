@@ -41,8 +41,10 @@ export interface TcStyle {
   color: string;
   anchor: string;
   marginPt: number;
-  /** Safe margin as a % of the artboard's shorter side (scales across sizes). */
+  /** Safe margin as a % of the artboard's shorter side (legacy/fallback). */
   safeMarginPct: number;
+  /** Fixed safe margin in px (preferred — e.g. 70px from the edges). */
+  safeMarginPx: number;
 }
 
 /**
@@ -55,6 +57,8 @@ export interface TcFont {
   style?: string;
   psName?: string;
   sizePx: number;
+  /** Line spacing in px (fixed leading). */
+  leadingPx?: number;
   color: string;
 }
 
@@ -71,7 +75,8 @@ export interface TcWriteOptions {
   text: string;
   dir: "rtl" | "ltr";
   anchor: string;
-  safeMarginPct: number;
+  /** Fixed safe margin in px from the chosen edges. */
+  marginPx: number;
   font: TcFont;
   latinFont?: TcFont;
   layout?: TcLayoutRule;

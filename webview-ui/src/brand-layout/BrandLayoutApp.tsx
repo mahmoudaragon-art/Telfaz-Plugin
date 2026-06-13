@@ -207,7 +207,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
         text: t,
         dir,
         anchor,
-        safeMarginPct: cfg.tcStyle.safeMarginPct,
+        marginPx: cfg.tcStyle.safeMarginPx,
         font,
         latinFont,
         layout,

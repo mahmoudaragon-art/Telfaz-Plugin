@@ -304,19 +304,30 @@ export async function updateTcText(text: string) {
 
 async function writeTcPhotoshop(opts: TcWriteOptions) {
   const ps = photoshop;
-  const { dir, anchor, safeMarginPct, font, latinFont, layout } = opts;
+  const { dir, anchor, marginPx, font, latinFont, layout } = opts;
   const text = toPsText(opts.text);
+  // Arabic → right align; English → left. RTL also flips the script direction.
+  const align = dir === "rtl" ? "right" : "left";
   await ps.core.executeAsModal(
     async () => {
       const doc = ps.app.activeDocument;
       const layerName = "T&C " + doc.name;
-      // points → pixels depends on the doc resolution; convert so sizePx is honoured.
+      // points → pixels depends on the doc resolution; convert so px is honoured.
       const resFactor = 72 / ((doc as any).resolution || 72);
-      const sizePt = font.sizePx * resFactor;
+      const style = (f: TcFont, withFont: boolean) => {
+        const s: any = {
+          _obj: "textStyle",
+          size: { _unit: "pointsUnit", _value: f.sizePx * resFactor },
+          autoLeading: false,
+          leading: { _unit: "pointsUnit", _value: (f.leadingPx ?? f.sizePx) * resFactor },
+          color: psColor(f.color),
+        };
+        if (withFont) Object.assign(s, psFontKeys(f));
+        return s;
+      };
 
-      // 1) Create with SIZE + COLOUR + direction only. Keeping the font out of
-      //    this step means the size/colour always apply even if a font name
-      //    can't be resolved (which otherwise drops PS to its ~4pt default).
+      // 1) Create with size + colour + leading + alignment/direction (no font),
+      //    so those always apply even if a font name can't be resolved.
       await ps.action.batchPlay(
         [
           {
@@ -327,19 +338,11 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
               name: layerName,
               textKey: text,
               textStyleRange: [
-                {
-                  _obj: "textStyleRange",
-                  from: 0,
-                  to: text.length,
-                  textStyle: {
-                    _obj: "textStyle",
-                    size: { _unit: "pointsUnit", _value: sizePt },
-                    color: psColor(font.color),
-                  },
-                },
+                { _obj: "textStyleRange", from: 0, to: text.length, textStyle: style(font, false) },
               ],
               paragraphStyle: {
                 _obj: "paragraphStyle",
+                align: { _enum: "alignmentType", _value: align },
                 direction: {
                   _enum: "direction",
                   _value: dir === "rtl" ? "dirRightToLeft" : "dirLeftToRight",
@@ -353,13 +356,14 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
 
       const layer = doc.activeLayers[0];
       try {
-        layer.name = layerName; // so the plugin can find/update it later
+        layer.name = layerName;
       } catch {
         /* ignore */
       }
 
-      // 2) Apply fonts best-effort (won't disturb size/colour if a name fails).
-      const setFont = async (from: number, to: number, f: TcFont) => {
+      // 2) Apply the font AND reassert size/colour/leading (so a font "set"
+      //    can't silently reset colour to black).
+      const applyRun = async (from: number, to: number, f: TcFont) => {
         try {
           await ps.action.batchPlay(
             [
@@ -369,12 +373,7 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
                 to: {
                   _obj: "textLayer",
                   textStyleRange: [
-                    {
-                      _obj: "textStyleRange",
-                      from,
-                      to,
-                      textStyle: { _obj: "textStyle", ...psFontKeys(f) },
-                    },
+                    { _obj: "textStyleRange", from, to, textStyle: style(f, true) },
                   ],
                 },
               },
@@ -385,20 +384,21 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
           console.warn("T&C font not applied:", f.family || f.psName, e);
         }
       };
-      await setFont(0, text.length, font);
+      await applyRun(0, text.length, font);
       if (latinFont) {
         let i = 0;
         while (i < text.length) {
           const d = isDigit(text[i]);
           let j = i + 1;
           while (j < text.length && isDigit(text[j]) === d) j++;
-          if (d) await setFont(i, j, latinFont);
+          if (d) await applyRun(i, j, latinFont);
           i = j;
         }
       }
 
-      const b = layer.bounds; // left, top, right, bottom (px)
-
+      // 3) Position. Fixed safe margin; anchored to the far edges so the block
+      //    never exceeds the bottom/right and grows upward as lines are added.
+      const b = layer.bounds;
       const moveText = async (tx: number, ty: number) => {
         await ps.action.batchPlay(
           [
@@ -416,8 +416,6 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
         );
       };
 
-      // belowLayer (Budget): nudge a named logo up, drop the T&C under it,
-      // bottom-aligned to another named logo. Falls back to anchor placement.
       let placed = false;
       if (layout && layout.mode === "belowLayer" && layout.moveLayer && layout.alignTo) {
         try {
@@ -437,17 +435,16 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
         }
       }
 
-      // anchored placement (3×3 anchor). Safe margin = % of the shorter side.
       if (!placed) {
-        const margin = Math.round(Math.min(doc.width, doc.height) * ((safeMarginPct ?? 4) / 100));
+        const m = marginPx ?? 70;
         const lw = b.right - b.left;
         const lh = b.bottom - b.top;
         let tx: number, ty: number;
-        if (anchor.indexOf("bottom") > -1) ty = doc.height - margin - lh - b.top;
-        else if (anchor.indexOf("top") > -1) ty = margin - b.top;
+        if (anchor.indexOf("bottom") > -1) ty = doc.height - m - lh - b.top;
+        else if (anchor.indexOf("top") > -1) ty = m - b.top;
         else ty = (doc.height - lh) / 2 - b.top;
-        if (anchor.indexOf("left") > -1) tx = margin - b.left;
-        else if (anchor.indexOf("right") > -1) tx = doc.width - margin - lw - b.left;
+        if (anchor.indexOf("right") > -1) tx = doc.width - m - lw - b.left;
+        else if (anchor.indexOf("left") > -1) tx = m - b.left;
         else tx = (doc.width - lw) / 2 - b.left;
         await moveText(tx, ty);
       }
@@ -461,7 +458,7 @@ async function writeTcIllustrator(opts: TcWriteOptions) {
   const app = ill.app;
   if (!app.documents.length) throw new Error("Open a document first");
   const doc = app.activeDocument;
-  const { text, anchor, safeMarginPct, font } = opts;
+  const { text, anchor, marginPx, font } = opts;
   const tf = doc.textFrames.add();
   tf.contents = text;
   try {
@@ -481,9 +478,7 @@ async function writeTcIllustrator(opts: TcWriteOptions) {
     /* ignore */
   }
   const ab = doc.artboards[doc.artboards.getActiveArtboardIndex()].artboardRect; // [l,t,r,b]
-  const abW = Math.abs(ab[2] - ab[0]);
-  const abH = Math.abs(ab[1] - ab[3]);
-  const m = Math.round(Math.min(abW, abH) * ((safeMarginPct ?? 4) / 100));
+  const m = marginPx ?? 70;
   const w = tf.width;
   const h = tf.height;
   let x: number, y: number;

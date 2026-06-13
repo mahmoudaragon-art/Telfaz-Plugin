@@ -76,6 +76,7 @@ export const baseConfig: Config = {
     anchor: "bottom-center",
     marginPt: 36,
     safeMarginPct: 4,
+    safeMarginPx: 70,
   },
   // Per-client T&C placement. Clients not listed use "bottom" (NEO/default).
   tcLayout: {
@@ -90,9 +91,9 @@ export const baseConfig: Config = {
   // verify these in Photoshop and adjust if a run shows a fallback font.
   tcClientStyles: {
     NEO: {
-      ar: { family: "Risala VF Light", style: "Medium", sizePx: 14, color: "#FFFFFF" },
-      en: { family: "SangBleu Sunrise", style: "Regular", sizePx: 14, color: "#FFFFFF" },
-      latin: { family: "SangBleu Sunrise", style: "Regular", sizePx: 14, color: "#FFFFFF" },
+      ar: { family: "Risala", style: "Medium", sizePx: 14, leadingPx: 20, color: "#FFFFFF" },
+      en: { family: "SangBleu Sunrise", style: "Regular", sizePx: 14, leadingPx: 20, color: "#FFFFFF" },
+      latin: { family: "SangBleu Sunrise", style: "Regular", sizePx: 14, leadingPx: 20, color: "#FFFFFF" },
     },
   },
   brands: [

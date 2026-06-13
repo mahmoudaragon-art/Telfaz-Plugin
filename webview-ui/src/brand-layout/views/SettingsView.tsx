@@ -255,12 +255,12 @@ export const SettingsView: React.FC<Props> = ({ cfg, api, onLivePreview, onSave,
           </div>
         </div>
         <div className="field">
-          <label className="field-label">Safe margin (%)</label>
+          <label className="field-label">Safe margin (px)</label>
           <input
             type="number"
             className="text-input"
-            value={draft.tcStyle.safeMarginPct}
-            onChange={(e) => patchTcStyle({ safeMarginPct: parseFloat(e.target.value) || 0 })}
+            value={draft.tcStyle.safeMarginPx}
+            onChange={(e) => patchTcStyle({ safeMarginPx: parseFloat(e.target.value) || 0 })}
           />
         </div>
         <div className="folder-hint">Anchor is chosen per-write in the Place tab.</div>
