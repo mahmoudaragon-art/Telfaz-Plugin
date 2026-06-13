@@ -496,13 +496,38 @@ export async function updateTcText(
   );
 }
 
-/** Detect the artboards in a document (top-level group layers). */
-function getArtboards(doc: any): any[] {
+/**
+ * Find the real artboards in a document. A top-level layer is an artboard iff
+ * `get artboard.artboardRect` resolves to a rect — far more reliable than the
+ * "is it a group" heuristic (which also catches plain groups / backgrounds).
+ * Returns each artboard's id, name and true frame in one pass.
+ */
+async function getArtboardLayers(
+  doc: any,
+): Promise<
+  {
+    id: number;
+    name: string;
+    rect: { left: number; top: number; right: number; bottom: number };
+  }[]
+> {
+  let layers: any[] = [];
   try {
-    return (doc.layers as any[]).filter((l) => l && l.layers !== undefined);
+    layers = doc.layers as any[];
   } catch {
     return [];
   }
+  const out: {
+    id: number;
+    name: string;
+    rect: { left: number; top: number; right: number; bottom: number };
+  }[] = [];
+  for (const l of layers) {
+    if (!l) continue;
+    const rect = await getArtboardRect(l.id);
+    if (rect) out.push({ id: l.id, name: l.name, rect });
+  }
+  return out;
 }
 
 /** Create + style + direction + position ONE T&C text layer relative to `rect`. */
@@ -637,14 +662,12 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
   await ps.core.executeAsModal(
     async () => {
       const doc = ps.app.activeDocument;
-      const artboards = getArtboards(doc);
+      const artboards = await getArtboardLayers(doc);
       if (artboards.length) {
-        // A T&C in EVERY artboard, positioned within each artboard's own frame.
+        // A T&C in EVERY artboard, positioned within each artboard's own frame
+        // (the rect comes straight from artboard.artboardRect — never stale here
+        // because artboards are created pre-centered and never moved).
         for (const ab of artboards) {
-          const real = await getArtboardRect(ab.id);
-          const bb = ab.bounds;
-          const rect =
-            real || { left: bb.left, top: bb.top, right: bb.right, bottom: bb.bottom };
           // Select the artboard so the new text layer belongs to it.
           try {
             await ps.action.batchPlay(
@@ -654,7 +677,7 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
           } catch {
             /* ignore */
           }
-          await writeOneTcPS(doc, rect, "T&C " + ab.name, opts);
+          await writeOneTcPS(doc, ab.rect, "T&C " + ab.name, opts);
         }
       } else {
         const rect = { left: 0, top: 0, right: doc.width, bottom: doc.height };
