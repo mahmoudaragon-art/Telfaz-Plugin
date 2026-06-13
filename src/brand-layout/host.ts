@@ -457,26 +457,6 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
       } catch (e) {
         console.warn("paragraph direction not applied", e);
       }
-      // …then alignment LAST, so it isn't undone by the direction change.
-      try {
-        await ps.action.batchPlay(
-          [
-            {
-              _obj: "set",
-              _target: paragraphTarget,
-              to: {
-                _obj: "paragraphStyle",
-                textOverrideFeatureName: 808464433,
-                align: { _enum: "alignmentType", _value: align },
-              },
-              _options: { dialogOptions: "dontDisplay" },
-            },
-          ],
-          {} as any,
-        );
-      } catch (e) {
-        console.warn("paragraph align not applied", e);
-      }
 
       // 3) Position. Fixed safe margin; anchored to the far edges so the block
       //    never exceeds the bottom/right and grows upward as lines are added.
@@ -530,6 +510,28 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
         else if (anchor.indexOf("left") > -1) tx = mx - b.left;
         else tx = (doc.width - lw) / 2 - b.left;
         await moveText(tx, ty);
+      }
+
+      // 4) FINAL step: apply the alignment last (recorded form), so nothing
+      //    after it can undo the right-align.
+      try {
+        await ps.action.batchPlay(
+          [
+            {
+              _obj: "set",
+              _target: paragraphTarget,
+              to: {
+                _obj: "paragraphStyle",
+                textOverrideFeatureName: 808464433,
+                align: { _enum: "alignmentType", _value: align },
+              },
+              _options: { dialogOptions: "dontDisplay" },
+            },
+          ],
+          {} as any,
+        );
+      } catch (e) {
+        console.warn("paragraph align not applied", e);
       }
     },
     { commandName: "Write T&C" },
