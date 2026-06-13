@@ -344,8 +344,6 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
   const ps = photoshop;
   const { dir, anchor, marginXPx, marginYPx, font, latinFont, layout } = opts;
   const text = toPsText(opts.text);
-  // Arabic → right align; English → left. RTL also flips the script direction.
-  const align = dir === "rtl" ? "right" : "left";
   await ps.core.executeAsModal(
     async () => {
       const doc = ps.app.activeDocument;
@@ -514,36 +512,6 @@ async function writeTcPhotoshop(opts: TcWriteOptions) {
     },
     { commandName: "Write T&C" },
   );
-
-  // FINAL step, in its OWN modal — exactly like the standalone recording. Run
-  // amid the other commands the alignment didn't apply; isolated it does.
-  try {
-    await ps.core.executeAsModal(
-      async () => {
-        await ps.action.batchPlay(
-          [
-            {
-              _obj: "set",
-              _target: [
-                { _ref: "property", _property: "paragraphStyle" },
-                { _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" },
-              ],
-              to: {
-                _obj: "paragraphStyle",
-                textOverrideFeatureName: 808464433,
-                align: { _enum: "alignmentType", _value: align },
-              },
-              _options: { dialogOptions: "dontDisplay" },
-            },
-          ],
-          {},
-        );
-      },
-      { commandName: "Align T&C" },
-    );
-  } catch (e) {
-    console.warn("paragraph align not applied", e);
-  }
 }
 
 async function writeTcIllustrator(opts: TcWriteOptions) {
