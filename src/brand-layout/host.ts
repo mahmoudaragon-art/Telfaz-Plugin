@@ -512,9 +512,17 @@ const layerBounds = (l: any): Box => {
 const clamp = (v: number, lo: number, hi: number) =>
   Math.max(Math.min(lo, hi), Math.min(Math.max(lo, hi), v));
 
+/** Per-size guide targets from the popup: normalized (0–1) centres in the frame
+ *  where the visual focal and the text safe box should land. */
+export type AdaptTargets = Record<
+  string,
+  { focal: { x: number; y: number }; safe: { x: number; y: number } }
+>;
+
 export async function adaptDesignToSizes(
   items: { size: SizeOption; base: string }[],
   cfg: Config,
+  targets?: AdaptTargets,
 ): Promise<{ created: number; failed: string[]; placedMissing: string[] }> {
   if (HOST !== "Photoshop") throw new Error("Adapt is Photoshop-only");
   if (!items.length) throw new Error("Pick at least one size");
@@ -627,9 +635,14 @@ export async function adaptDesignToSizes(
         const ay = rowCy - H / 2;
         x += W + gap;
         try {
+          // Where the focal/safe land in this frame (popup targets, else centred).
+          const tgt = targets?.[size.value];
+          const focalX = tgt?.focal?.x ?? 0.5;
+          const focalY = tgt?.focal?.y ?? 0.5;
+
           // Taller-than-wide → vertical focal; otherwise horizontal (square too).
           const focal = H > W ? focalVert : focalHoriz;
-          // --- Visual: cover-fit, keep `focal` centred in the frame ---
+          // --- Visual: cover-fit, land `focal` at its target spot in the frame ---
           const vso = await dupSO(visualSOId);
           {
             const v = layerBounds(vso);
@@ -641,8 +654,8 @@ export async function adaptDesignToSizes(
             const halfH = ((v.bottom - v.top) * s) / 2;
             const fx = Cx + ((focal.left + focal.right) / 2 - Cx) * s;
             const fy = Cy + ((focal.top + focal.bottom) / 2 - Cy) * s;
-            let tx = ax + W / 2 - fx;
-            let ty = ay + H / 2 - fy;
+            let tx = ax + focalX * W - fx;
+            let ty = ay + focalY * H - fy;
             tx = clamp(tx, ax + W - (Cx + halfW), ax - (Cx - halfW));
             ty = clamp(ty, ay + H - (Cy + halfH), ay - (Cy - halfH));
             await vso.translate(tx, ty);
@@ -660,12 +673,18 @@ export async function adaptDesignToSizes(
             const lh = t.bottom - t.top;
             const s = Math.min(W / masterW, H / masterH);
             await tso.scale(s * 100, s * 100, anchor);
-            // Centre the text horizontally in the artboard; anchor its TOP at the
-            // safe rect's relative top so it sits high (matching the master).
-            const topRatio = safe.top / masterH;
-            const tx = ax + W / 2 - Cx;
-            const ty = ay + topRatio * H - (Cy - (lh * s) / 2);
-            await tso.translate(tx, ty);
+            if (tgt?.safe) {
+              // Centre the text block on the safe target the user set in the popup.
+              const tx = ax + tgt.safe.x * W - Cx;
+              const ty = ay + tgt.safe.y * H - Cy;
+              await tso.translate(tx, ty);
+            } else {
+              // Default: centred horizontally, anchored at the safe rect's top ratio.
+              const topRatio = safe.top / masterH;
+              const tx = ax + W / 2 - Cx;
+              const ty = ay + topRatio * H - (Cy - (lh * s) / 2);
+              await tso.translate(tx, ty);
+            }
           }
 
           // --- Frame: select both SOs, make an artboard that wraps + clips them ---

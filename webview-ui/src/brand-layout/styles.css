@@ -984,3 +984,55 @@ body {
   .row2 { flex-direction: column; gap: var(--sp-3); }
   .tab span:not(.tab-ico) { display: none; }
 }
+
+/* ── Adapt guide popup ─────────────────────────────────────────── */
+.guide-modal-backdrop {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0, 0, 0, 0.62);
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--sp-4);
+}
+.guide-modal {
+  width: min(640px, 94vw); max-height: 92vh; overflow: auto;
+  background: var(--surface, #16161a);
+  border: 1px solid var(--border, #2a2a30);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  padding: var(--sp-4);
+}
+.guide-modal-title { font-size: 15px; font-weight: 700; }
+.guide-modal-sub { font-size: 12px; opacity: 0.7; margin-top: 4px; }
+.guide-modal-sub .dot-focal { color: #ff9b3d; }
+.guide-modal-sub .dot-safe { color: #2fd0ff; }
+.guide-frames {
+  display: flex; flex-wrap: wrap; gap: var(--sp-4);
+  justify-content: center; margin: var(--sp-4) 0;
+}
+.guide-frame-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.guide-frame-label { font-size: 11px; opacity: 0.7; }
+.guide-frame {
+  position: relative;
+  background: #0c0c0f;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  overflow: hidden;
+  touch-action: none;
+}
+.guide-box {
+  position: absolute;
+  border: 2px solid currentColor;
+  border-radius: 4px;
+  cursor: grab;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  user-select: none; touch-action: none;
+}
+.guide-box:active { cursor: grabbing; }
+.guide-box span { pointer-events: none; opacity: 0.85; }
+.guide-box.focal { color: #ff9b3d; background: rgba(255, 140, 0, 0.14); }
+.guide-box.safe { color: #2fd0ff; background: rgba(0, 200, 255, 0.14); }
+.guide-modal-foot {
+  display: flex; justify-content: flex-end; gap: var(--sp-3);
+  border-top: 1px solid var(--border, #2a2a30); padding-top: var(--sp-3);
+}
+.guide-modal-foot .btn-ghost, .guide-modal-foot .btn-primary { width: auto; padding: 8px 18px; }

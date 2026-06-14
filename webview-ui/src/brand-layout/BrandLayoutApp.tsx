@@ -18,6 +18,7 @@ import {
 import type { API } from "../../../src/api/api";
 import { LogoMark } from "./Icons";
 import { PlaceView } from "./views/PlaceView";
+import { AdaptGuideModal, type GuideTargets } from "./views/AdaptGuideModal";
 import { BrandsView } from "./views/BrandsView";
 import { SettingsView } from "./views/SettingsView";
 import { AboutView } from "./views/AboutView";
@@ -51,6 +52,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
   const [status, setStatusState] = useState<{ msg: string; kind: string }>({ msg: "", kind: "" });
   // Live appearance preview (uncommitted Settings edits); falls back to cfg.ui
   const [livePreviewUi, setLivePreviewUi] = useState<Ui | null>(null);
+  const [adaptItems, setAdaptItems] = useState<{ size: SizeOption; base: string }[] | null>(null);
 
   const statusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const setStatus = (msg: string, kind = "") => {
@@ -207,9 +209,18 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     }
     if (!items.length) return setStatus("No valid sizes selected", "err");
 
+    // Open the guide popup; the actual adaptation runs from there with the
+    // per-size focal/safe positions the user sets.
+    setAdaptItems(items);
+  };
+
+  const runAdapt = async (targets: GuideTargets) => {
+    const items = adaptItems;
+    setAdaptItems(null);
+    if (!items) return;
     setStatus(`Adapting to ${items.length} size${items.length === 1 ? "" : "s"} …`, "busy");
     try {
-      const res = await api.adaptDesignToSizes(items, cfg);
+      const res = await api.adaptDesignToSizes(items, cfg, targets);
       const parts = [`Adapted ${res.created}`];
       if (res.placedMissing.length) parts.push(`no asset: ${res.placedMissing.join(", ")}`);
       if (res.failed.length) parts.push(`failed: ${res.failed.join(" · ")}`);
@@ -460,6 +471,14 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
           </button>
         ))}
       </nav>
+
+      {adaptItems && (
+        <AdaptGuideModal
+          sizes={adaptItems.map((i) => i.size)}
+          onRun={runAdapt}
+          onCancel={() => setAdaptItems(null)}
+        />
+      )}
     </div>
   );
 };
