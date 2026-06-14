@@ -67,7 +67,11 @@ export const baseConfig: Config = {
     // The "Digital" sizes exist only in Arabic (langs:["AR"]) so they drop out
     // of the list when English is selected.
     { label: "Budget Website", value: "CB_Budget", w: 630, h: 300, category: "cutebox", asset: "Cute box {lang} budget website (630-300) {lang}.pdf" },
-    { label: "Application", value: "CB_Application", w: 375, h: 200, category: "cutebox", asset: "Cute box {lang}Application 375-200 full visuals {lang}.pdf" },
+    // Application (375×200) ships in three variants — kept as separate sizes so
+    // each is created as its own artboard/file with its own name.
+    { label: "Application — Full Visuals", value: "CB_Application_Full", w: 375, h: 200, category: "cutebox", asset: "Cute box {lang}Application 375-200 full visuals {lang}.pdf" },
+    { label: "Application — No Txt", value: "CB_Application_NoTxt", w: 375, h: 200, category: "cutebox", asset: "Cute box {lang}Application 375-200 No Txt {lang}.pdf" },
+    { label: "Application — Txt Only", value: "CB_Application_TxtOnly", w: 375, h: 200, category: "cutebox", asset: "Cute box {lang}Application 375-200 Txt only {lang}.pdf" },
     { label: "Landscape", value: "CB_Landscape", w: 1200, h: 628, category: "cutebox", asset: "Cute box {lang}Landscape image size (1200 x 628) {lang}.pdf" },
     { label: "Portrait", value: "CB_Portrait", w: 960, h: 1200, category: "cutebox", asset: "Cute box {lang}Portrait image size (960 x 1200) {lang}.pdf" },
     { label: "Digital 344×1032", value: "CB_Digital_344x1032", w: 344, h: 1032, category: "cutebox", langs: ["AR"], asset: "Cute box {lang}Digital (344-1032) {lang}.pdf" },
