@@ -95,11 +95,18 @@ export const PlaceView: React.FC<Props> = ({
       />
     ) : null;
 
+  // A size shows if it isn't language-restricted, no language is picked yet, or
+  // its langs include the chosen language (e.g. Cute Box AR-only Digital sizes
+  // drop out when English is selected).
+  const sizeForLang = (s: { langs?: ("AR" | "EN")[] }) =>
+    !s.langs || !selection.lang || s.langs.includes(selection.lang as "AR" | "EN");
+  const visibleSizes = cfg.sizes.filter(sizeForLang);
+
   // All categories with their sizes (empty ones included so they're visible);
   // each is collapsible.
   const cats = cfg.categories.map((category) => ({
     category,
-    sizes: cfg.sizes.filter((s) => s.category === category.value),
+    sizes: visibleSizes.filter((s) => s.category === category.value),
   }));
   const [openCats, setOpenCats] = useState<Set<string>>(
     () => new Set(cats.filter((c) => c.sizes.length).map((c) => c.category.value)),
@@ -146,8 +153,11 @@ export const PlaceView: React.FC<Props> = ({
     !selection.tc ||
     (mode === "single" ? !selection.size : checked.size === 0);
 
+  const visibleValues = new Set(visibleSizes.map((s) => s.value));
   const selectedSizes = () =>
-    mode === "single" ? (selection.size ? [selection.size] : []) : Array.from(checked);
+    (mode === "single" ? (selection.size ? [selection.size] : []) : Array.from(checked)).filter(
+      (v) => visibleValues.has(v),
+    );
 
   const handleCreate = () => onCreateArtboards(selectedSizes());
   const handleAdapt = () => onAdaptDesign(selectedSizes());
@@ -228,7 +238,7 @@ export const PlaceView: React.FC<Props> = ({
         <div className="field">
           <label className="field-label">Size</label>
           <Dropdown
-            items={cfg.sizes.map((s) => ({ label: sizeLabel(s), value: s.value }))}
+            items={visibleSizes.map((s) => ({ label: sizeLabel(s), value: s.value }))}
             value={selection.size}
             placeholder="Select size"
             onChange={(v) => onSelect("size", v)}

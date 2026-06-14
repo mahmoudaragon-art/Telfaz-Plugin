@@ -62,6 +62,17 @@ export const baseConfig: Config = {
     { label: "Video Square", value: "GoogleVideoSquare", w: 1080, h: 1080, category: "google" },
     { label: "Video Vertical", value: "GoogleVideoVertical", w: 1080, h: 1920, category: "google" },
     { label: "Logo Landscape", value: "GoogleLogoLandscape", w: 1200, h: 300, category: "google" },
+    // Cute Box — AR & EN. The "Digital" sizes exist only in Arabic, so they're
+    // tagged langs:["AR"] and drop out of the list when English is selected.
+    { label: "Budget Website", value: "CB_Budget", w: 630, h: 300, category: "cutebox" },
+    { label: "Application", value: "CB_Application", w: 375, h: 200, category: "cutebox" },
+    { label: "Landscape", value: "CB_Landscape", w: 1200, h: 628, category: "cutebox" },
+    { label: "Portrait", value: "CB_Portrait", w: 960, h: 1200, category: "cutebox" },
+    { label: "Digital 344×1032", value: "CB_Digital_344x1032", w: 344, h: 1032, category: "cutebox", langs: ["AR"] },
+    { label: "Digital 768×432", value: "CB_Digital_768x432", w: 768, h: 432, category: "cutebox", langs: ["AR"] },
+    { label: "Digital 1080×1920", value: "CB_Digital_1080x1920", w: 1080, h: 1920, category: "cutebox", langs: ["AR"] },
+    { label: "Digital 2048×576", value: "CB_Digital_2048x576", w: 2048, h: 576, category: "cutebox", langs: ["AR"] },
+    { label: "Digital 2816×960", value: "CB_Digital_2816x960", w: 2816, h: 960, category: "cutebox", langs: ["AR"] },
   ],
   languages: [
     { label: "EN", value: "EN" },

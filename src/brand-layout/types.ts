@@ -24,6 +24,8 @@ export interface SizeOption {
   w: number;
   h: number;
   category: string;
+  /** Languages this size exists for. Omitted = all. e.g. Cute Box Digital is AR-only. */
+  langs?: ("AR" | "EN")[];
 }
 
 export interface Brand {
