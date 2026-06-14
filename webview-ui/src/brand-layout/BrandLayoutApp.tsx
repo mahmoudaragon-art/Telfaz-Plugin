@@ -86,7 +86,17 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
       // localStorage is unreliable in UXP).
       try {
         const ov = parseJSON<Partial<Config>>(await api.kvGet("overrides"), {});
-        if (ov && Object.keys(ov).length) setCfg(mergeOverrides(baseConfig, ov));
+        if (ov && Object.keys(ov).length) {
+          const merged = mergeOverrides(baseConfig, ov);
+          // A saved config REPLACES the sizes/categories lists, so newly-added
+          // defaults (e.g. the Google Ads sizes) wouldn't appear. Re-add any base
+          // size/category whose value isn't already present (keeps user edits).
+          const haveSizes = new Set(merged.sizes.map((s) => s.value));
+          for (const bs of baseConfig.sizes) if (!haveSizes.has(bs.value)) merged.sizes.push(bs);
+          const haveCats = new Set(merged.categories.map((c) => c.value));
+          for (const bc of baseConfig.categories) if (!haveCats.has(bc.value)) merged.categories.push(bc);
+          setCfg(merged);
+        }
       } catch {
         /* ignore */
       }

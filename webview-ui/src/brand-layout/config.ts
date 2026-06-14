@@ -52,6 +52,16 @@ export const baseConfig: Config = {
     { label: "Square", value: "Square", w: 1080, h: 1080, category: "general" },
     { label: "Vertical", value: "Vertical", w: 1080, h: 1920, category: "general" },
     { label: "FHD", value: "FHD", w: 1920, h: 1080, category: "general" },
+    // Google Ads — from SNB Creative Requirements (GDN / YouTube / PMAX / Search),
+    // deduplicated by dimension. Static, video and logo formats.
+    { label: "Square", value: "GoogleSquare", w: 1200, h: 1200, category: "google" },
+    { label: "Landscape", value: "GoogleLandscape", w: 1200, h: 628, category: "google" },
+    { label: "Vertical", value: "GoogleVertical", w: 900, h: 1600, category: "google" },
+    { label: "Portrait", value: "GooglePortrait", w: 960, h: 1200, category: "google" },
+    { label: "Video Horizontal", value: "GoogleVideoH", w: 1920, h: 1080, category: "google" },
+    { label: "Video Square", value: "GoogleVideoSquare", w: 1080, h: 1080, category: "google" },
+    { label: "Video Vertical", value: "GoogleVideoVertical", w: 1080, h: 1920, category: "google" },
+    { label: "Logo Landscape", value: "GoogleLogoLandscape", w: 1200, h: 300, category: "google" },
   ],
   languages: [
     { label: "EN", value: "EN" },
