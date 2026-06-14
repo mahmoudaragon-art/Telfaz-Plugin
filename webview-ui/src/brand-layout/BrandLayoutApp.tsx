@@ -286,6 +286,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
         anchor,
         marginXPx: cfg.tcStyle.safeMarginXPx,
         marginYPx: cfg.tcStyle.safeMarginYPx,
+        marginYByDim: cfg.tcStyle.marginYByDim,
         artboardName,
         font,
         latinFont,
@@ -320,6 +321,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
         anchor,
         marginXPx: cfg.tcStyle.safeMarginXPx,
         marginYPx: cfg.tcStyle.safeMarginYPx,
+        marginYByDim: cfg.tcStyle.marginYByDim,
         font,
         latinFont,
       });

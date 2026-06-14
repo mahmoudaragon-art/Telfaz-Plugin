@@ -46,6 +46,8 @@ export interface TcStyle {
   /** Fixed safe margins in px: horizontal (left/right) and vertical (top/bottom). */
   safeMarginXPx: number;
   safeMarginYPx: number;
+  /** Per-size bottom-margin overrides, keyed by "{w}x{h}". Falls back to safeMarginYPx. */
+  marginYByDim?: Record<string, number>;
 }
 
 /**
@@ -79,6 +81,8 @@ export interface TcWriteOptions {
   /** Fixed safe margins in px (horizontal = left/right, vertical = top/bottom). */
   marginXPx: number;
   marginYPx: number;
+  /** Per-size bottom-margin override, keyed by "{w}x{h}" (e.g. "1920x1080": 124). */
+  marginYByDim?: Record<string, number>;
   /** Names the T&C layer "T&C {artboardName}" (falls back to the doc name). */
   artboardName?: string;
   font: TcFont;

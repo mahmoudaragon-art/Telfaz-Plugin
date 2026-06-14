@@ -489,15 +489,39 @@ export async function addAdaptGuides(): Promise<void> {
           const l = doc.activeLayers[0];
           l.name = name;
           l.opacity = 25;
+          return l;
         } catch {
-          /* ignore */
+          return null;
         }
       };
 
       // Centred focal guides (portrait + landscape) and an upper text-safe box.
-      await guide("Focal Vertical", [90, 220, 130], 300, 825, 2700, 2175);
-      await guide("Focal Horizontal", [255, 140, 0], 825, 300, 2175, 2700);
-      await guide("safe", [0, 200, 255], 300, 600, 1000, 2400);
+      const focalV = await guide("Focal Vertical", [90, 220, 130], 300, 825, 2700, 2175);
+      const focalH = await guide("Focal Horizontal", [255, 140, 0], 825, 300, 2175, 2700);
+      const safe = await guide("safe", [0, 200, 255], 300, 600, 1000, 2400);
+
+      // Group focals into "Visual" and the safe rect into "Text" (the adapt
+      // convention). Best-effort: if grouping isn't supported, the rects stay
+      // loose and the user can group them with Cmd+G.
+      const PLACEINSIDE = (ps.constants as any)?.ElementPlacement?.PLACEINSIDE;
+      try {
+        const visualG = await (doc as any).createLayerGroup({ name: "Visual" });
+        for (const l of [focalH, focalV]) {
+          try {
+            if (l) await l.move(visualG, PLACEINSIDE);
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      try {
+        const textG = await (doc as any).createLayerGroup({ name: "Text" });
+        if (safe) await safe.move(textG, PLACEINSIDE);
+      } catch {
+        /* ignore */
+      }
     },
     { commandName: "Add adapt guides" },
   );
@@ -840,9 +864,9 @@ export async function writeTc(opts: TcWriteOptions) {
 export async function updateTcText(opts: TcWriteOptions) {
   if (HOST !== "Photoshop") throw new Error("Update is Photoshop-only for now");
   const ps = photoshop;
-  const { text, anchor, font, latinFont } = opts;
+  const { text, anchor, font, latinFont, marginYByDim } = opts;
   const mx = opts.marginXPx ?? 70;
-  const my = opts.marginYPx ?? 80;
+  const defaultMy = opts.marginYPx ?? 80;
   await ps.core.executeAsModal(
     async () => {
       const doc = ps.app.activeDocument;
@@ -945,6 +969,8 @@ export async function updateTcText(opts: TcWriteOptions) {
             bottom: Number(layer.bounds.bottom),
           };
           const rect = frameFor(tc.name);
+          const dimKey = `${Math.round(rect.right - rect.left)}x${Math.round(rect.bottom - rect.top)}`;
+          const my = marginYByDim?.[dimKey] ?? defaultMy;
           const lw = b.right - b.left;
           const lh = b.bottom - b.top;
           let ty: number;
@@ -1021,7 +1047,7 @@ async function writeOneTcPS(
   opts: TcWriteOptions,
 ) {
   const ps = photoshop;
-  const { dir, anchor, marginXPx, marginYPx, font, latinFont } = opts;
+  const { dir, anchor, marginXPx, marginYPx, marginYByDim, font, latinFont } = opts;
   const text = toPsText(opts.text);
   const resFactor = 72 / ((doc as any).resolution || 72);
   const style = (f: TcFont, withFont: boolean) => {
@@ -1136,8 +1162,10 @@ async function writeOneTcPS(
   }
 
   // 4) Position within `rect` (the artboard or the whole doc) with safe margins.
+  //    Bottom margin can be overridden per size ("{w}x{h}") from the frame dims.
   const mx = marginXPx ?? 70;
-  const my = marginYPx ?? 80;
+  const dimKey = `${Math.round(rect.right - rect.left)}x${Math.round(rect.bottom - rect.top)}`;
+  const my = marginYByDim?.[dimKey] ?? marginYPx ?? 80;
 
   const readBounds = async () =>
     (await getActiveLayerBounds(doc)) ||

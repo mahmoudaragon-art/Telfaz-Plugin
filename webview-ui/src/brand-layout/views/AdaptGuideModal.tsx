@@ -86,6 +86,9 @@ export const AdaptGuideModal: React.FC<Props> = ({ sizes, onRun, onCancel }) => 
                   {s.label} · {s.w}×{s.h}
                 </div>
                 <div className="guide-frame" style={{ width: fw, height: fh }}>
+                  {/* non-interactive references */}
+                  <div className="guide-safearea" />
+                  <div className="guide-crosshair" />
                   <div
                     className="guide-box focal"
                     onPointerDown={(e) => onDown(e, s.value, "focal")}

@@ -1036,3 +1036,17 @@ body {
   border-top: 1px solid var(--border, #2a2a30); padding-top: var(--sp-3);
 }
 .guide-modal-foot .btn-ghost, .guide-modal-foot .btn-primary { width: auto; padding: 8px 18px; }
+
+/* center crosshair + border safe-area in each guide frame */
+.guide-safearea {
+  position: absolute; inset: 7%;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.guide-crosshair { position: absolute; inset: 0; pointer-events: none; }
+.guide-crosshair::before, .guide-crosshair::after {
+  content: ""; position: absolute; background: rgba(255, 255, 255, 0.16);
+}
+.guide-crosshair::before { left: 50%; top: 0; bottom: 0; width: 1px; }
+.guide-crosshair::after { top: 50%; left: 0; right: 0; height: 1px; }

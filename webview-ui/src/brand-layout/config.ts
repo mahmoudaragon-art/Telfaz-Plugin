@@ -78,6 +78,13 @@ export const baseConfig: Config = {
     safeMarginPct: 4,
     safeMarginXPx: 70,
     safeMarginYPx: 80,
+    // Per-size bottom gap (px), keyed by "{w}x{h}". Sizes not listed use safeMarginYPx (80).
+    marginYByDim: {
+      "1920x1080": 124, // FHD
+      "1080x1350": 75, // Instagram
+      "1080x1920": 140, // Vertical
+      // Square 1080x1080 → default 80
+    },
   },
   // Per-client T&C placement. Clients not listed use "bottom" (NEO/default).
   tcLayout: {
