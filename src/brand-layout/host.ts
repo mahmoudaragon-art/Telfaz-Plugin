@@ -600,11 +600,23 @@ export async function adaptDesignToSizes(
       const focalLayers = (visualG.layers as any[]).filter((c) => /focal/i.test(c.name));
       if (!focalLayers.length) throw new Error('No "focal" rectangle inside the Visual group');
       const pickFocal = (re: RegExp) => focalLayers.find((c: any) => re.test(c.name)) || focalLayers[0];
-      const focalVert = layerBounds(pickFocal(/vert/i));
-      const focalHoriz = layerBounds(pickFocal(/horiz/i));
       const visualContent = contentLayer(visualG, /focal/i);
       if (!visualContent) throw new Error("No content layer inside the Visual group");
       const visualSOId: number = visualContent.id;
+
+      // Focal centre as a RATIO within the visual SO, measured once in the master.
+      // Duplicated SOs can shift position (the master gets absorbed into the first
+      // artboard), so we re-derive the focal's absolute position from EACH dup's
+      // own bounds — keeping the focal glued to the artwork.
+      const v0 = layerBounds(visualContent);
+      const v0w = Math.max(1, v0.right - v0.left);
+      const v0h = Math.max(1, v0.bottom - v0.top);
+      const relCenter = (f: Box) => ({
+        x: ((f.left + f.right) / 2 - v0.left) / v0w,
+        y: ((f.top + f.bottom) / 2 - v0.top) / v0h,
+      });
+      const focalVertRel = relCenter(layerBounds(pickFocal(/vert/i)));
+      const focalHorizRel = relCenter(layerBounds(pickFocal(/horiz/i)));
 
       let safe: Box | null = null;
       let textSOId: number | null = null;
@@ -663,7 +675,7 @@ export async function adaptDesignToSizes(
           const focalY = tgt?.focal?.y ?? 0.5;
 
           // Taller-than-wide → vertical focal; otherwise horizontal (square too).
-          const focal = H > W ? focalVert : focalHoriz;
+          const focalRel = H > W ? focalVertRel : focalHorizRel;
           // --- Visual: scale-to-honor. Zoom just enough to land the focal at its
           //     popup target (focalX,focalY of the frame) AND still cover the frame. ---
           const vso = await dupSO(visualSOId);
@@ -671,8 +683,9 @@ export async function adaptDesignToSizes(
             const v = layerBounds(vso);
             const Cx = (v.left + v.right) / 2;
             const Cy = (v.top + v.bottom) / 2;
-            const Fx = (focal.left + focal.right) / 2;
-            const Fy = (focal.top + focal.bottom) / 2;
+            // Focal absolute position derived from THIS dup's bounds (dups shift).
+            const Fx = v.left + focalRel.x * (v.right - v.left);
+            const Fy = v.top + focalRel.y * (v.bottom - v.top);
             // Focal-centre → each SO edge (master px). The min scale that both
             // covers and keeps the focal at the target is the max of the four
             // edge ratios (target gap ÷ available distance).
