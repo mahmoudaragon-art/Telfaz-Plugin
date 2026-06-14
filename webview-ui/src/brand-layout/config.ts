@@ -62,17 +62,19 @@ export const baseConfig: Config = {
     { label: "Video Square", value: "GoogleVideoSquare", w: 1080, h: 1080, category: "google" },
     { label: "Video Vertical", value: "GoogleVideoVertical", w: 1080, h: 1920, category: "google" },
     { label: "Logo Landscape", value: "GoogleLogoLandscape", w: 1200, h: 300, category: "google" },
-    // Cute Box — AR & EN. The "Digital" sizes exist only in Arabic, so they're
-    // tagged langs:["AR"] and drop out of the list when English is selected.
-    { label: "Budget Website", value: "CB_Budget", w: 630, h: 300, category: "cutebox" },
-    { label: "Application", value: "CB_Application", w: 375, h: 200, category: "cutebox" },
-    { label: "Landscape", value: "CB_Landscape", w: 1200, h: 628, category: "cutebox" },
-    { label: "Portrait", value: "CB_Portrait", w: 960, h: 1200, category: "cutebox" },
-    { label: "Digital 344×1032", value: "CB_Digital_344x1032", w: 344, h: 1032, category: "cutebox", langs: ["AR"] },
-    { label: "Digital 768×432", value: "CB_Digital_768x432", w: 768, h: 432, category: "cutebox", langs: ["AR"] },
-    { label: "Digital 1080×1920", value: "CB_Digital_1080x1920", w: 1080, h: 1920, category: "cutebox", langs: ["AR"] },
-    { label: "Digital 2048×576", value: "CB_Digital_2048x576", w: 2048, h: 576, category: "cutebox", langs: ["AR"] },
-    { label: "Digital 2816×960", value: "CB_Digital_2816x960", w: 2816, h: 960, category: "cutebox", langs: ["AR"] },
+    // Cute Box — Budget client assets (AR & EN), real .pdf filenames (split into
+    // AR/EN subfolders, found by the recursive resolver). "{lang}" → AR/EN.
+    // The "Digital" sizes exist only in Arabic (langs:["AR"]) so they drop out
+    // of the list when English is selected.
+    { label: "Budget Website", value: "CB_Budget", w: 630, h: 300, category: "cutebox", asset: "Cute box {lang} budget website (630-300) {lang}.pdf" },
+    { label: "Application", value: "CB_Application", w: 375, h: 200, category: "cutebox", asset: "Cute box {lang}Application 375-200 full visuals {lang}.pdf" },
+    { label: "Landscape", value: "CB_Landscape", w: 1200, h: 628, category: "cutebox", asset: "Cute box {lang}Landscape image size (1200 x 628) {lang}.pdf" },
+    { label: "Portrait", value: "CB_Portrait", w: 960, h: 1200, category: "cutebox", asset: "Cute box {lang}Portrait image size (960 x 1200) {lang}.pdf" },
+    { label: "Digital 344×1032", value: "CB_Digital_344x1032", w: 344, h: 1032, category: "cutebox", langs: ["AR"], asset: "Cute box {lang}Digital (344-1032) {lang}.pdf" },
+    { label: "Digital 768×432", value: "CB_Digital_768x432", w: 768, h: 432, category: "cutebox", langs: ["AR"], asset: "Cute box {lang}Digital (768-432) {lang}.pdf" },
+    { label: "Digital 1080×1920", value: "CB_Digital_1080x1920", w: 1080, h: 1920, category: "cutebox", langs: ["AR"], asset: "Cute box {lang}Digital (1080-1920) {lang}.pdf" },
+    { label: "Digital 2048×576", value: "CB_Digital_2048x576", w: 2048, h: 576, category: "cutebox", langs: ["AR"], asset: "Cute box {lang}Digital (2048-576) {lang}.pdf" },
+    { label: "Digital 2816×960", value: "CB_Digital_2816x960", w: 2816, h: 960, category: "cutebox", langs: ["AR"], asset: "Cute box {lang}Digital (2816-960) {lang}.pdf" },
   ],
   languages: [
     { label: "EN", value: "EN" },
@@ -184,6 +186,10 @@ export function parseJSON<T>(json: string | null, fallback: T): T {
 
 export function buildBaseName(cfg: Config, s: Selection): string | null {
   if (!s.client || !s.size || !s.lang || !s.tc) return null;
+  // Sizes with an explicit asset filename (e.g. Cute Box .pdf files) bypass the
+  // name pattern entirely — return the real filename with "{lang}" filled in.
+  const size = cfg.sizes.find((z) => z.value === s.size);
+  if (size?.asset) return size.asset.replace(/\{lang\}/gi, s.lang);
   return cfg.namePattern
     .replace("{client}", s.client)
     .replace("{size}", s.size)

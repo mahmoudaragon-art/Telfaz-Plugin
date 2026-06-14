@@ -26,6 +26,9 @@ export interface SizeOption {
   category: string;
   /** Languages this size exists for. Omitted = all. e.g. Cute Box Digital is AR-only. */
   langs?: ("AR" | "EN")[];
+  /** Exact asset filename (with extension) when it doesn't follow the name pattern.
+   *  "{lang}" is replaced with the selected language. e.g. Cute Box .pdf assets. */
+  asset?: string;
 }
 
 export interface Brand {

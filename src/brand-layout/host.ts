@@ -111,23 +111,46 @@ export async function restoreFolder(): Promise<FolderInfo | null> {
 /* ---------------- asset resolution + placement ---------------- */
 
 async function resolveAssetEntry(folder: any, base: string, cfg: Config) {
-  const entries = await folder.getEntries();
+  // `base` may already be a full filename WITH extension (e.g. Cute Box
+  // "Cute box ARDigital (344-1032) AR.pdf"); otherwise append the host/config
+  // extensions. Match is case-insensitive and searches subfolders too, so
+  // assets split into AR/EN subfolders (Cute Box) still resolve.
+  const hasExt = /\.[a-z0-9]{2,4}$/i.test(base);
   const hostExt = HOST === "Illustrator" ? "ai" : "psd";
-  const ordered = [base + "." + hostExt, ...cfg.extensions.map((e) => base + "." + e)];
-  for (const name of ordered) {
+  const names = (
+    hasExt ? [base] : [base + "." + hostExt, ...cfg.extensions.map((e) => base + "." + e)]
+  ).map((n) => n.toLowerCase());
+
+  const search = async (f: any, depth: number): Promise<any> => {
+    let entries: any[];
+    try {
+      entries = await f.getEntries();
+    } catch {
+      return null;
+    }
     const hit = entries.find(
-      (e: any) => e.isFile && e.name.toLowerCase() === name.toLowerCase(),
+      (e: any) => e.isFile && names.includes(e.name.toLowerCase()),
     );
     if (hit) return hit;
-  }
-  return null;
+    if (depth <= 0) return null;
+    for (const e of entries) {
+      if (e.isFolder) {
+        const deep = await search(e, depth - 1);
+        if (deep) return deep;
+      }
+    }
+    return null;
+  };
+
+  return await search(folder, 4);
 }
 
 /** Resolve + place the linked asset for the current base name. Returns placed file name. */
 export async function placeAsset(base: string, cfg: Config): Promise<string> {
   if (!currentFolder) throw new Error("Connect the source folder first");
   const entry = await resolveAssetEntry(currentFolder, base, cfg);
-  if (!entry) throw new Error("Not found: " + base + ".(ai|psd)");
+  if (!entry)
+    throw new Error("Not found: " + base + (/\.[a-z0-9]{2,4}$/i.test(base) ? "" : ".(ai|psd)"));
   if (HOST === "Photoshop") await placeLinkedPhotoshop(entry);
   else if (HOST === "Illustrator") await placeLinkedIllustrator(entry);
   else throw new Error("Unsupported host: " + HOST);
