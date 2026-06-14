@@ -414,6 +414,95 @@ export async function createArtboardsDoc(
 
 type Box = { left: number; top: number; right: number; bottom: number };
 
+/**
+ * One-click master scaffold for adaptation: make the canvas 3000×3000 (new doc if
+ * none, else resize the current) and drop the three named guide rectangles —
+ * "safe" (text box), "Focal Horizontal" and "Focal Vertical" — at sensible
+ * starting positions. The user then positions them and builds Visual/Text groups.
+ */
+export async function addAdaptGuides(): Promise<void> {
+  if (HOST !== "Photoshop") throw new Error("Adapt guides are Photoshop-only");
+  const ps = photoshop;
+  await ps.core.executeAsModal(
+    async () => {
+      // 1) Ensure a 3000×3000 canvas.
+      if (!ps.app.documents.length) {
+        await ps.app.documents.add({
+          width: 3000,
+          height: 3000,
+          resolution: 72,
+          name: "Adapt Master",
+          fill: "transparent",
+          mode: "RGBColorMode",
+        } as any);
+      } else {
+        await ps.action.batchPlay(
+          [
+            {
+              _obj: "canvasSize",
+              width: { _unit: "pixelsUnit", _value: 3000 },
+              height: { _unit: "pixelsUnit", _value: 3000 },
+              horizontal: { _enum: "horizontalLocation", _value: "center" },
+              vertical: { _enum: "verticalLocation", _value: "center" },
+              _options: { dialogOptions: "dontDisplay" },
+            },
+          ],
+          {},
+        );
+      }
+      const doc = ps.app.activeDocument;
+
+      // 2) A guide = a low-opacity coloured rectangle shape layer, named.
+      const guide = async (
+        name: string,
+        rgb: [number, number, number],
+        top: number,
+        left: number,
+        bottom: number,
+        right: number,
+      ) => {
+        await ps.action.batchPlay(
+          [
+            {
+              _obj: "make",
+              _target: [{ _ref: "contentLayer" }],
+              using: {
+                _obj: "contentLayer",
+                type: {
+                  _obj: "solidColorLayer",
+                  color: { _obj: "RGBColor", red: rgb[0], green: rgb[1], blue: rgb[2] },
+                },
+                shape: {
+                  _obj: "rectangle",
+                  unitValueQuadVersion: 1,
+                  top: { _unit: "pixelsUnit", _value: top },
+                  left: { _unit: "pixelsUnit", _value: left },
+                  bottom: { _unit: "pixelsUnit", _value: bottom },
+                  right: { _unit: "pixelsUnit", _value: right },
+                },
+              },
+            },
+          ],
+          {},
+        );
+        try {
+          const l = doc.activeLayers[0];
+          l.name = name;
+          l.opacity = 25;
+        } catch {
+          /* ignore */
+        }
+      };
+
+      // Centred focal guides (portrait + landscape) and an upper text-safe box.
+      await guide("Focal Vertical", [90, 220, 130], 300, 825, 2700, 2175);
+      await guide("Focal Horizontal", [255, 140, 0], 825, 300, 2175, 2700);
+      await guide("safe", [0, 200, 255], 300, 600, 1000, 2400);
+    },
+    { commandName: "Add adapt guides" },
+  );
+}
+
 const layerBounds = (l: any): Box => {
   const N = (v: any) => Number(v && typeof v === "object" && "_value" in v ? v._value : v);
   const b = l.bounds;

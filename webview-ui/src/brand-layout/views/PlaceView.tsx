@@ -30,6 +30,7 @@ interface Props {
   onPlace: () => void;
   onCreateArtboards: (sizeValues: string[]) => void;
   onAdaptDesign: (sizeValues: string[]) => void;
+  onAddGuides: () => void;
   onWriteTc: (text: string, dir: "rtl" | "ltr", anchor: string) => void;
   onUpdateTc: (text: string, anchor: string) => void;
 }
@@ -61,6 +62,7 @@ export const PlaceView: React.FC<Props> = ({
   onPlace,
   onCreateArtboards,
   onAdaptDesign,
+  onAddGuides,
   onWriteTc,
   onUpdateTc,
 }) => {
@@ -393,6 +395,9 @@ export const PlaceView: React.FC<Props> = ({
           {mode === "single"
             ? "Adapt Design to Size"
             : `Adapt Design to ${checked.size || ""} Size${checked.size === 1 ? "" : "s"}`}
+        </button>
+        <button className="btn-ghost wide" onClick={onAddGuides}>
+          + Set up adapt guides (3000×3000)
         </button>
       </div>
       <div className="folder-hint">

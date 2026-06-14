@@ -219,6 +219,19 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     }
   };
 
+  // One-click: 3000×3000 canvas + the three named guide rects for adaptation.
+  const handleAddGuides = async () => {
+    if (!hostName.toLowerCase().startsWith("photoshop"))
+      return setStatus("Guides are Photoshop-only", "err");
+    setStatus("Adding adapt guides …", "busy");
+    try {
+      await api.addAdaptGuides();
+      setStatus("Added 3000×3000 canvas + guides — group them into Visual/Text", "ok");
+    } catch (e: any) {
+      setStatus("Guides failed: " + (e?.message || e), "err");
+    }
+  };
+
   const handleVerify = async () => {
     if (!connected) return setStatus("Connect the folder first", "err");
     setStatus("Scanning folder…", "busy");
@@ -383,6 +396,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
             onPlace={handlePlace}
             onCreateArtboards={handleCreateArtboards}
             onAdaptDesign={handleAdaptDesign}
+            onAddGuides={handleAddGuides}
             onWriteTc={handleWriteTc}
             onUpdateTc={handleUpdateTc}
           />
