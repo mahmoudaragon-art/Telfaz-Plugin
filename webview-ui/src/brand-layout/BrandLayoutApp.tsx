@@ -53,7 +53,9 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
   const [status, setStatusState] = useState<{ msg: string; kind: string }>({ msg: "", kind: "" });
   // Live appearance preview (uncommitted Settings edits); falls back to cfg.ui
   const [livePreviewUi, setLivePreviewUi] = useState<Ui | null>(null);
-  const [adaptItems, setAdaptItems] = useState<{ size: SizeOption; base: string }[] | null>(null);
+  const [adaptItems, setAdaptItems] = useState<
+    { size: SizeOption; base: string; artboardName?: string }[] | null
+  >(null);
 
   const statusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const setStatus = (msg: string, kind = "") => {
@@ -217,11 +219,16 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     if (!selection.client || !selection.lang || !selection.tc)
       return setStatus("Pick client, language and T&C first", "err");
 
-    const items: { size: SizeOption; base: string }[] = [];
+    const items: { size: SizeOption; base: string; artboardName?: string }[] = [];
     for (const sv of sizeValues) {
       const size = cfg.sizes.find((s) => s.value === sv);
       const base = buildBaseNameForSize(cfg, selection, sv);
-      if (size && base) items.push({ size, base });
+      if (size && base) {
+        // Cute Box → name the artboard after the asset (clean, no "Cute box"/lang
+        // prefix); others fall back to "Label WxH" on the host.
+        const artboardName = assetDisplayName(size, selection.lang) || undefined;
+        items.push({ size, base, artboardName });
+      }
     }
     if (!items.length) return setStatus("No valid sizes selected", "err");
 

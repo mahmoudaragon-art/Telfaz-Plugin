@@ -592,7 +592,7 @@ export type AdaptTargets = Record<
 >;
 
 export async function adaptDesignToSizes(
-  items: { size: SizeOption; base: string }[],
+  items: { size: SizeOption; base: string; artboardName?: string }[],
   cfg: Config,
   targets?: AdaptTargets,
 ): Promise<{ created: number; failed: string[]; placedMissing: string[] }> {
@@ -708,7 +708,18 @@ export async function adaptDesignToSizes(
           /* ignore */
         }
       }
-      const gap = 200;
+      // Cover-crop makes the visual WIDER than its frame (a lot, on tall/narrow
+      // sizes). That extra width used to bleed onto the neighbouring artboard and
+      // get captured there — the visual went missing (white artboard). Space each
+      // artboard by its OWN horizontal cover-overflow + a margin so no visual can
+      // reach its neighbour.
+      const overflowX = (s: SizeOption) => {
+        const sc = Math.max(s.w / masterW, s.h / masterH);
+        return Math.max(0, (masterW * sc - s.w) / 2);
+      };
+      const MARGIN = 300;
+      // Per-size artboard name (Cute Box → asset name; else "Label WxH").
+      const nameBySize = new Map(items.map((it) => [it.size.value, it.artboardName]));
       let x = Math.max(masterRight, masterW) + 600;
       const maxH = Math.max(...sizes.map((s) => s.h));
       const rowCy = maxH / 2;
@@ -716,9 +727,10 @@ export async function adaptDesignToSizes(
       for (const size of sizes) {
         const W = size.w;
         const H = size.h;
-        const ax = x;
+        const ov = overflowX(size);
+        const ax = x + ov; // clear this artboard's own left cover-overflow
         const ay = rowCy - H / 2;
-        x += W + gap;
+        x = ax + W + ov + MARGIN; // advance past it + its right overflow + margin
         try {
           // Where the focal/safe land in this frame (popup targets, else centred).
           const tgt = targets?.[size.value];
@@ -819,7 +831,7 @@ export async function adaptDesignToSizes(
           let abId = 0;
           try {
             const ab = doc.activeLayers[0];
-            ab.name = `${size.label} ${W}x${H}`;
+            ab.name = nameBySize.get(size.value) || `${size.label} ${W}x${H}`;
             abId = ab.id;
           } catch {
             /* ignore */
