@@ -12,6 +12,7 @@ import {
   baseConfig,
   buildBaseName,
   buildBaseNameForSize,
+  assetDisplayName,
   mergeOverrides,
   parseJSON,
 } from "./config";
@@ -166,7 +167,12 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
       const base = buildBaseNameForSize(cfg, selection, sv);
       if (!size || !base) continue;
       const catLabel = cfg.categories.find((c) => c.value === size.category)?.label || "";
-      items.push({ base, size, artboardName: `${catLabel} ${size.label} ${size.w}X${size.h}`.trim() });
+      // Asset-named sizes (Cute Box) name the file/artboard after the asset
+      // (minus the "Cute box"/lang prefix); others use "Category Size WxH".
+      const artboardName =
+        assetDisplayName(size, selection.lang) ||
+        `${catLabel} ${size.label} ${size.w}X${size.h}`.trim();
+      items.push({ base, size, artboardName });
     }
     if (!items.length) return setStatus("No valid sizes selected", "err");
 
@@ -288,7 +294,8 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
         ? cfg.categories.find((c) => c.value === selSize.category)?.label || ""
         : "";
       const artboardName = selSize
-        ? `${catLabel} ${selSize.label} ${selSize.w}X${selSize.h}`.trim()
+        ? assetDisplayName(selSize, selection.lang) ||
+          `${catLabel} ${selSize.label} ${selSize.w}X${selSize.h}`.trim()
         : undefined;
       const opts: TcWriteOptions = {
         text: t,

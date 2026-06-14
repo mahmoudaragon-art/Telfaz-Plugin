@@ -157,7 +157,7 @@ export async function placeAsset(base: string, cfg: Config): Promise<string> {
   return entry.name;
 }
 
-async function placeLinkedPhotoshop(entry: any) {
+async function placeLinkedPhotoshop(entry: any, layerName?: string) {
   const ps = photoshop;
   await ps.core.executeAsModal(
     async () => {
@@ -190,6 +190,14 @@ async function placeLinkedPhotoshop(entry: any) {
         ],
         { synchronousExecution: true } as any,
       );
+      // Rename the placed smart-object layer (e.g. clean Cute Box name).
+      if (layerName) {
+        try {
+          ps.app.activeDocument.activeLayers[0].name = layerName;
+        } catch {
+          /* ignore */
+        }
+      }
     },
     { commandName: "Place Linked Asset" },
   );
@@ -229,7 +237,7 @@ export async function createArtboardAndPlace(
   const name = artboardName || base;
   if (HOST === "Photoshop") {
     await createDocPhotoshop(size, name);
-    await placeLinkedPhotoshop(entry);
+    await placeLinkedPhotoshop(entry, name);
   } else if (HOST === "Illustrator") {
     await createDocIllustrator(size, name);
     await placeLinkedIllustrator(entry);
@@ -418,6 +426,13 @@ export async function createArtboardsDoc(
           ],
           { synchronousExecution: true } as any,
         );
+        // Name the placed smart-object layer after the artboard (clean Cute Box
+        // name), so the layer/file reads the same as its artboard.
+        try {
+          doc.activeLayers[0].name = it.artboardName;
+        } catch {
+          /* ignore */
+        }
         x += w + gap;
       }
     },

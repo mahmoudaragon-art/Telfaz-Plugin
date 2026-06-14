@@ -206,6 +206,23 @@ export function buildBaseNameForSize(
   return buildBaseName(cfg, { ...s, size: sizeValue });
 }
 
+/**
+ * Display/artboard/layer name for an asset-named size (Cute Box). Takes the real
+ * filename, drops the extension, then strips the first two words — the "Cute box"
+ * brand prefix and the leading AR/EN language code — leaving e.g.
+ * "Cute box ENApplication 375-200 full visuals EN.pdf" → "Application 375-200 full visuals EN".
+ * Returns null for sizes without an asset filename (use the normal name there).
+ */
+export function assetDisplayName(size: SizeOption, lang: string | null): string | null {
+  if (!size.asset || !lang) return null;
+  return size.asset
+    .replace(/\{lang\}/gi, lang)
+    .replace(/\.[a-z0-9]{2,4}$/i, "") // drop extension
+    .replace(/^\s*cute\s*box\s*/i, "") // drop "Cute box"
+    .replace(/^\s*(AR|EN)\s*/i, "") // drop the leading language code
+    .trim();
+}
+
 /** "Square — 1080×1080" */
 export function sizeLabel(s: SizeOption): string {
   return `${s.label} — ${s.w}×${s.h}`;
