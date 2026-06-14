@@ -117,9 +117,13 @@ async function resolveAssetEntry(folder: any, base: string, cfg: Config) {
   // assets split into AR/EN subfolders (Cute Box) still resolve.
   const hasExt = /\.[a-z0-9]{2,4}$/i.test(base);
   const hostExt = HOST === "Illustrator" ? "ai" : "psd";
+  // Normalise for comparison: lowercase + collapse any run of whitespace to one
+  // space. Asset files sometimes have stray double spaces (e.g. Cute Box
+  // "budget website  (630-300)") that would otherwise fail an exact match.
+  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
   const names = (
     hasExt ? [base] : [base + "." + hostExt, ...cfg.extensions.map((e) => base + "." + e)]
-  ).map((n) => n.toLowerCase());
+  ).map(norm);
 
   const search = async (f: any, depth: number): Promise<any> => {
     let entries: any[];
@@ -128,9 +132,7 @@ async function resolveAssetEntry(folder: any, base: string, cfg: Config) {
     } catch {
       return null;
     }
-    const hit = entries.find(
-      (e: any) => e.isFile && names.includes(e.name.toLowerCase()),
-    );
+    const hit = entries.find((e: any) => e.isFile && names.includes(norm(e.name)));
     if (hit) return hit;
     if (depth <= 0) return null;
     for (const e of entries) {
