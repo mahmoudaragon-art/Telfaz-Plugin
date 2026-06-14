@@ -42,6 +42,12 @@ export async function kvSet(key: string, value: string): Promise<void> {
 
 export const HOST = uxp.host.name; // "Photoshop" | "Illustrator"
 
+/** Settle pause between Photoshop steps. Duplicating layers, making artboards and
+ *  placing assets back-to-back lets the async DOM/artboard state lag, so layers
+ *  bleed into the wrong artboard. A short wait between steps keeps it solid. */
+const STEP_DELAY = 300; // ms
+const sleep = (ms: number = STEP_DELAY) => new Promise((r) => setTimeout(r, ms));
+
 /** Bridge-safe host name accessor (the webview reads this once on mount). */
 export async function getHostName(): Promise<string> {
   return HOST;
@@ -368,6 +374,7 @@ export async function createArtboardsDoc(
         // Empty artboard, already centred vertically (deselect first so it
         // doesn't wrap the previously placed layer).
         await deselect();
+        await sleep(); // let the deselect register before making the artboard
         await ps.action.batchPlay(
           [
             {
@@ -379,6 +386,7 @@ export async function createArtboardsDoc(
           ],
           {},
         );
+        await sleep(); // let the artboard form before reading/placing into it
         let abId = 0;
         try {
           const ab = doc.activeLayers[0];
@@ -394,6 +402,7 @@ export async function createArtboardsDoc(
               [{ _obj: "select", _target: [{ _ref: "layer", _id: abId }], makeVisible: false }],
               {},
             );
+            await sleep(); // ensure this artboard is active before placing
           } catch {
             /* ignore */
           }
@@ -428,6 +437,7 @@ export async function createArtboardsDoc(
           ],
           { synchronousExecution: true } as any,
         );
+        await sleep(); // let the placed asset settle inside the artboard
         // Name the placed smart-object layer after the artboard (clean Cute Box
         // name), so the layer/file reads the same as its artboard.
         try {
@@ -685,6 +695,7 @@ export async function adaptDesignToSizes(
           ],
           {},
         );
+        await sleep(); // let the duplicate land before reading its bounds
         return doc.activeLayers[0];
       };
 
@@ -744,6 +755,7 @@ export async function adaptDesignToSizes(
             const fx = Cx + (Fx - Cx) * s;
             const fy = Cy + (Fy - Cy) * s;
             await vso.translate(ax + focalX * W - fx, ay + focalY * H - fy);
+            await sleep(); // let the scale/move settle before the next layer
           }
           const vsoId = vso.id;
 
@@ -770,6 +782,7 @@ export async function adaptDesignToSizes(
               const ty = ay + topRatio * H - (Cy - (lh * s) / 2);
               await tso.translate(tx, ty);
             }
+            await sleep(); // let the text scale/move settle
           }
 
           // --- Frame: select both SOs, make an artboard that wraps + clips them ---
@@ -790,6 +803,7 @@ export async function adaptDesignToSizes(
               {},
             );
           }
+          await sleep(); // let the selection register before wrapping the artboard
           await ps.action.batchPlay(
             [
               {
@@ -801,6 +815,7 @@ export async function adaptDesignToSizes(
             ],
             {},
           );
+          await sleep(); // let the artboard form before reading/placing into it
           let abId = 0;
           try {
             const ab = doc.activeLayers[0];
@@ -818,6 +833,7 @@ export async function adaptDesignToSizes(
                 [{ _obj: "select", _target: [{ _ref: "layer", _id: abId }], makeVisible: false }],
                 {},
               );
+              await sleep(); // ensure the target artboard is active before placing
               const token = await fs.createSessionToken(entry);
               await ps.action.batchPlay(
                 [
@@ -846,11 +862,13 @@ export async function adaptDesignToSizes(
                 ],
                 { synchronousExecution: true } as any,
               );
+              await sleep(); // let the placed asset settle inside the artboard
             } catch {
               placedMissing.push(`${size.label} (place failed)`);
             }
           }
           created++;
+          await sleep(); // fully settle this artboard before starting the next
         } catch (e: any) {
           const msg =
             (e && e.message) || (typeof e === "string" ? e : JSON.stringify(e)) || "unknown";
