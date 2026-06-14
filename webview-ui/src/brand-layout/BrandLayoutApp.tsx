@@ -292,7 +292,26 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     if (!t) return setStatus("T&C text is empty", "err");
     setStatus("Updating T&C …", "busy");
     try {
-      await api.updateTcText(t, anchor, cfg.tcStyle.safeMarginXPx, cfg.tcStyle.safeMarginYPx);
+      // Same per-client fonts as Write, so digits get the latin font on update too.
+      const client = selection.client || "";
+      const isAr = selection.lang === "AR";
+      const cs = cfg.tcClientStyles?.[client];
+      const fallback: TcFont = {
+        family: isAr ? cfg.tcStyle.fontAR : cfg.tcStyle.fontEN,
+        sizePx: cfg.tcStyle.sizePt,
+        color: cfg.tcStyle.color,
+      };
+      const font = cs ? (isAr ? cs.ar : cs.en) : fallback;
+      const latinFont = isAr ? cs?.latin : undefined;
+      await api.updateTcText({
+        text: t,
+        dir: isAr ? "rtl" : "ltr",
+        anchor,
+        marginXPx: cfg.tcStyle.safeMarginXPx,
+        marginYPx: cfg.tcStyle.safeMarginYPx,
+        font,
+        latinFont,
+      });
       setStatus("T&C text updated", "ok");
     } catch (e: any) {
       setStatus("Update failed: " + e.message, "err");

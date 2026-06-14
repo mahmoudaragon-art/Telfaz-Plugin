@@ -818,20 +818,61 @@ export async function writeTc(opts: TcWriteOptions) {
  * then re-anchor it so it keeps its safe margins — extra lines grow upward and
  * the bottom margin stays fixed.
  */
-export async function updateTcText(
-  text: string,
-  anchor: string,
-  marginXPx: number,
-  marginYPx: number,
-) {
+export async function updateTcText(opts: TcWriteOptions) {
   if (HOST !== "Photoshop") throw new Error("Update is Photoshop-only for now");
   const ps = photoshop;
+  const { text, anchor, font, latinFont } = opts;
+  const mx = opts.marginXPx ?? 70;
+  const my = opts.marginYPx ?? 80;
   await ps.core.executeAsModal(
     async () => {
       const doc = ps.app.activeDocument;
-      const mx = marginXPx ?? 70;
-      const my = marginYPx ?? 80;
       const psText = toPsText(text);
+      const resFactor = 72 / (Number((doc as any).resolution) || 72);
+
+      // Re-apply the dual fonts to the active text layer: main font for all,
+      // latin font for digit runs (new digits otherwise inherit the Arabic font).
+      const reapplyFonts = async () => {
+        if (!font) return;
+        const styleOf = (f: TcFont): any => ({
+          _obj: "textStyle",
+          size: { _unit: "pointsUnit", _value: f.sizePx * resFactor },
+          autoLeading: false,
+          leading: { _unit: "pointsUnit", _value: (f.leadingPx ?? f.sizePx) * resFactor },
+          color: psColor(f.color),
+          ...psFontKeys(f),
+        });
+        const applyRun = async (from: number, to: number, f: TcFont) => {
+          try {
+            await ps.action.batchPlay(
+              [
+                {
+                  _obj: "set",
+                  _target: [{ _ref: "textLayer", _enum: "ordinal", _value: "targetEnum" }],
+                  to: {
+                    _obj: "textLayer",
+                    textStyleRange: [{ _obj: "textStyleRange", from, to, textStyle: styleOf(f) }],
+                  },
+                },
+              ],
+              { synchronousExecution: true } as any,
+            );
+          } catch (e) {
+            console.warn("T&C update font not applied", e);
+          }
+        };
+        await applyRun(0, psText.length, font);
+        if (latinFont) {
+          let i = 0;
+          while (i < psText.length) {
+            const d = isDigit(psText[i]);
+            let j = i + 1;
+            while (j < psText.length && isDigit(psText[j]) === d) j++;
+            if (d) await applyRun(i, j, latinFont);
+            i = j;
+          }
+        }
+      };
 
       // Collect EVERY "T&C …" layer's id+name (recurse). We work by ID after this
       // — DOM refs go stale once the first text reflows the doc (the old bug).
@@ -873,6 +914,7 @@ export async function updateTcText(
           );
           const layer = doc.activeLayers[0];
           layer.textItem.contents = psText;
+          await reapplyFonts();
 
           // Re-anchor against this T&C's own artboard frame. Bottom anchor pins the
           // text's bottom a fixed `my` from the frame bottom, so adding a line grows
