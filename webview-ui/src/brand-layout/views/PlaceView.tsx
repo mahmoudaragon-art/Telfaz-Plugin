@@ -101,6 +101,18 @@ export const PlaceView: React.FC<Props> = ({
   const sizeForLang = (s: { langs?: ("AR" | "EN")[] }) =>
     !s.langs || !selection.lang || s.langs.includes(selection.lang as "AR" | "EN");
   const visibleSizes = cfg.sizes.filter(sizeForLang);
+  const visibleValues = new Set(visibleSizes.map((s) => s.value));
+
+  // When the language changes, drop any CHECKED size that's no longer available
+  // for it (e.g. the AR-only Cute Box sizes when switching to English) so the
+  // selection doesn't keep hidden sizes.
+  useEffect(() => {
+    setChecked((prev) => {
+      const next = new Set([...prev].filter((v) => visibleValues.has(v)));
+      return next.size === prev.size ? prev : next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selection.lang]);
 
   // All categories with their sizes (empty ones included so they're visible);
   // each is collapsible.
@@ -108,9 +120,8 @@ export const PlaceView: React.FC<Props> = ({
     category,
     sizes: visibleSizes.filter((s) => s.category === category.value),
   }));
-  const [openCats, setOpenCats] = useState<Set<string>>(
-    () => new Set(cats.filter((c) => c.sizes.length).map((c) => c.category.value)),
-  );
+  // Start every size category collapsed — the user opens the ones they want.
+  const [openCats, setOpenCats] = useState<Set<string>>(() => new Set());
   const toggleCat = (value: string) =>
     setOpenCats((prev) => {
       const next = new Set(prev);
@@ -153,7 +164,6 @@ export const PlaceView: React.FC<Props> = ({
     !selection.tc ||
     (mode === "single" ? !selection.size : checked.size === 0);
 
-  const visibleValues = new Set(visibleSizes.map((s) => s.value));
   const selectedSizes = () =>
     (mode === "single" ? (selection.size ? [selection.size] : []) : Array.from(checked)).filter(
       (v) => visibleValues.has(v),
