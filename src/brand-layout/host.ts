@@ -533,8 +533,6 @@ const layerBounds = (l: any): Box => {
   return { left: N(b.left), top: N(b.top), right: N(b.right), bottom: N(b.bottom) };
 };
 
-const clamp = (v: number, lo: number, hi: number) =>
-  Math.max(Math.min(lo, hi), Math.min(Math.max(lo, hi), v));
 
 /** Per-size guide targets from the popup: normalized (0–1) centres in the frame
  *  where the visual focal and the text safe box should land. */
@@ -666,23 +664,33 @@ export async function adaptDesignToSizes(
 
           // Taller-than-wide → vertical focal; otherwise horizontal (square too).
           const focal = H > W ? focalVert : focalHoriz;
-          // --- Visual: cover-fit, land `focal` at its target spot in the frame ---
+          // --- Visual: scale-to-honor. Zoom just enough to land the focal at its
+          //     popup target (focalX,focalY of the frame) AND still cover the frame. ---
           const vso = await dupSO(visualSOId);
           {
             const v = layerBounds(vso);
             const Cx = (v.left + v.right) / 2;
             const Cy = (v.top + v.bottom) / 2;
-            const s = Math.max(W / masterW, H / masterH);
+            const Fx = (focal.left + focal.right) / 2;
+            const Fy = (focal.top + focal.bottom) / 2;
+            // Focal-centre → each SO edge (master px). The min scale that both
+            // covers and keeps the focal at the target is the max of the four
+            // edge ratios (target gap ÷ available distance).
+            const dL = Math.max(1, Fx - v.left);
+            const dR = Math.max(1, v.right - Fx);
+            const dT = Math.max(1, Fy - v.top);
+            const dB = Math.max(1, v.bottom - Fy);
+            const s = Math.max(
+              (focalX * W) / dL,
+              ((1 - focalX) * W) / dR,
+              (focalY * H) / dT,
+              ((1 - focalY) * H) / dB,
+            );
             await vso.scale(s * 100, s * 100, anchor);
-            const halfW = ((v.right - v.left) * s) / 2;
-            const halfH = ((v.bottom - v.top) * s) / 2;
-            const fx = Cx + ((focal.left + focal.right) / 2 - Cx) * s;
-            const fy = Cy + ((focal.top + focal.bottom) / 2 - Cy) * s;
-            let tx = ax + focalX * W - fx;
-            let ty = ay + focalY * H - fy;
-            tx = clamp(tx, ax + W - (Cx + halfW), ax - (Cx - halfW));
-            ty = clamp(ty, ay + H - (Cy + halfH), ay - (Cy - halfH));
-            await vso.translate(tx, ty);
+            // Focal centre after scaling about the SO centre → move onto the target.
+            const fx = Cx + (Fx - Cx) * s;
+            const fy = Cy + (Fy - Cy) * s;
+            await vso.translate(ax + focalX * W - fx, ay + focalY * H - fy);
           }
           const vsoId = vso.id;
 
