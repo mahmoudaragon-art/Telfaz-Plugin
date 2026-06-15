@@ -95,24 +95,26 @@ export const PlaceView: React.FC<Props> = ({
       />
     ) : null;
 
-  // A size shows if it isn't language-restricted, no language is picked yet, or
-  // its langs include the chosen language (e.g. Cute Box AR-only Digital sizes
-  // drop out when English is selected).
+  // A size shows if it isn't language-restricted (or no language is picked yet,
+  // or its langs include the chosen language — e.g. Cute Box AR-only sizes drop
+  // out for English) AND it isn't client-restricted (or its clients include the
+  // chosen client — e.g. Budget's Social Media set vs the standard one).
   const sizeForLang = (s: { langs?: ("AR" | "EN")[] }) =>
     !s.langs || !selection.lang || s.langs.includes(selection.lang as "AR" | "EN");
-  const visibleSizes = cfg.sizes.filter(sizeForLang);
+  const sizeForClient = (s: { clients?: string[] }) =>
+    !s.clients || !selection.client || s.clients.includes(selection.client);
+  const visibleSizes = cfg.sizes.filter((s) => sizeForLang(s) && sizeForClient(s));
   const visibleValues = new Set(visibleSizes.map((s) => s.value));
 
-  // When the language changes, drop any CHECKED size that's no longer available
-  // for it (e.g. the AR-only Cute Box sizes when switching to English) so the
-  // selection doesn't keep hidden sizes.
+  // When the language or client changes, drop any CHECKED size that's no longer
+  // available so the selection doesn't keep hidden sizes.
   useEffect(() => {
     setChecked((prev) => {
       const next = new Set([...prev].filter((v) => visibleValues.has(v)));
       return next.size === prev.size ? prev : next;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selection.lang]);
+  }, [selection.lang, selection.client]);
 
   // All categories with their sizes (empty ones included so they're visible);
   // each is collapsible.

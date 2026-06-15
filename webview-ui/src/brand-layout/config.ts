@@ -50,10 +50,18 @@ export const baseConfig: Config = {
     { label: "MUPI Screens", value: "mupi" },
   ],
   sizes: [
-    { label: "Square", value: "Square", w: 1080, h: 1080, category: "general" },
-    { label: "FHD", value: "FHD", w: 1920, h: 1080, category: "general" },
-    { label: "Vertical", value: "Vertical", w: 1080, h: 1920, category: "general" },
-    { label: "Instagram", value: "Instagram", w: 1080, h: 1350, category: "general" },
+    // Social Media — naming differs per client. NEO et al. use the standard
+    // pattern (NEO_Square_AR_TC.ai); Budget uses "Social Media {lang}{Size} {lang}.pdf".
+    // So Budget has its own size set (asset templates), and the standard set is
+    // shown to every client EXCEPT Budget.
+    { label: "Square", value: "Square", w: 1080, h: 1080, category: "general", clients: ["NEO", "Nava", "Noug", "SNB", "GWM"] },
+    { label: "FHD", value: "FHD", w: 1920, h: 1080, category: "general", clients: ["NEO", "Nava", "Noug", "SNB", "GWM"] },
+    { label: "Vertical", value: "Vertical", w: 1080, h: 1920, category: "general", clients: ["NEO", "Nava", "Noug", "SNB", "GWM"] },
+    { label: "Instagram", value: "Instagram", w: 1080, h: 1350, category: "general", clients: ["NEO", "Nava", "Noug", "SNB", "GWM"] },
+    // Budget Social Media (.pdf, "Social Media {lang}{Size} {lang}.pdf").
+    { label: "Square", value: "SM_Budget_Square", w: 1080, h: 1080, category: "general", clients: ["Budget"], asset: "Social Media {lang}Square {lang}.pdf" },
+    { label: "Instagram", value: "SM_Budget_Instagram", w: 1080, h: 1350, category: "general", clients: ["Budget"], asset: "Social Media {lang}Instagram {lang}.pdf" },
+    { label: "Story", value: "SM_Budget_Story", w: 1080, h: 1920, category: "general", clients: ["Budget"], asset: "Social Media {lang}Story {lang}.pdf" },
     // Google Ads — from SNB Creative Requirements (GDN / YouTube / PMAX / Search),
     // deduplicated by dimension. Static, video and logo formats.
     { label: "Square", value: "GoogleSquare", w: 1200, h: 1200, category: "google" },
