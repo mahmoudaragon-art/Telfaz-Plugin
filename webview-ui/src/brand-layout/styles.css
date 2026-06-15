@@ -1072,3 +1072,64 @@ body {
 .done-popup-title { font-size: 18px; font-weight: 800; }
 .done-popup-body { font-size: 12px; opacity: 0.72; }
 .done-popup .btn-primary { width: auto; padding: 8px 28px; margin-top: 6px; }
+
+/* ---------------- sign-in gate ---------------- */
+.signin-loading { background: var(--bg, #0c0c0e); }
+.signin {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--sp-4);
+  background: var(--bg, #0c0c0e);
+}
+.signin-card {
+  width: min(360px, 92vw);
+  background: var(--surface, #16161a);
+  border: 1px solid var(--border, #2a2a30);
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  padding: 28px 24px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  text-align: center;
+}
+.signin-logo {
+  width: 56px; height: 56px; margin-bottom: 4px;
+  display: flex; align-items: center; justify-content: center;
+}
+.signin-logo svg { width: 100%; height: 100%; }
+.signin-title { font-size: 20px; font-weight: 800; }
+.signin-sub { font-size: 12px; opacity: 0.7; margin-bottom: 10px; }
+.signin-input {
+  width: 100%; box-sizing: border-box;
+  padding: 11px 13px;
+  background: var(--bg, #0c0c0e);
+  border: 1px solid var(--border, #2a2a30);
+  border-radius: 10px;
+  color: inherit; font-size: 13px;
+  text-align: center;
+}
+.signin-input:focus { outline: none; border-color: var(--orange, #ff5c1a); }
+.signin-error { font-size: 12px; color: #ff6b6b; }
+.signin-btn { width: 100%; margin-top: 8px; }
+.signin-foot { font-size: 10.5px; opacity: 0.5; margin-top: 12px; }
+
+/* ---------------- update banner ---------------- */
+.update-banner {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 7px 12px;
+  background: var(--orange, #ff5c1a);
+  color: #0a0a0c; font-size: 12px; font-weight: 600;
+}
+.update-link {
+  border: 0; cursor: pointer;
+  background: rgba(0, 0, 0, 0.22); color: #0a0a0c;
+  font-weight: 800; font-size: 11px;
+  padding: 4px 12px; border-radius: 999px;
+}
+.update-link:hover { background: rgba(0, 0, 0, 0.34); }
+
+/* ---------------- account block (About) ---------------- */
+.about-account { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.about-account-row { display: flex; flex-direction: column; gap: 2px; text-align: left; min-width: 0; }
+.about-account-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.5; }
+.about-account-email { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.about-signout { width: auto; padding: 7px 14px; flex: none; }

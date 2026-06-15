@@ -12,6 +12,7 @@ import type {
   FolderInfo,
   VerifyResult,
   SizeOption,
+  PluginMeta,
 } from "./types";
 
 export type { VerifyResult } from "./types";
@@ -68,6 +69,28 @@ export async function getPluginVersion(): Promise<string> {
     return (uxp.entrypoints as any)._pluginInfo.version || "1.0.0";
   } catch {
     return "1.0.0";
+  }
+}
+
+/* ---------------- remote plugin metadata (update check + sign-in list) -------
+   A single JSON hosted on GitHub holds the latest version, the .ccx download
+   link and the allowed email list. We fetch it on the host side (the manifest
+   declares the domain) and the webview falls back to baked-in values if it
+   fails. Update the URL below once the GitHub repo exists. */
+
+const META_URL =
+  "https://raw.githubusercontent.com/TELFAZ-PLUGIN/telfaz-plugin/main/plugin-meta.json";
+
+export async function getPluginMeta(): Promise<PluginMeta | null> {
+  try {
+    // Cache-bust so edits to the list/version show up on the next launch.
+    const res = await fetch(`${META_URL}?t=${Date.now()}`);
+    if (!res || !(res as any).ok) return null;
+    const j = await res.json();
+    if (!j || !Array.isArray(j.allowedEmails) || typeof j.version !== "string") return null;
+    return j as PluginMeta;
+  } catch {
+    return null;
   }
 }
 

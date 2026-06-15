@@ -32,6 +32,7 @@ export type {
   Selection,
   VerifyResult,
   FolderInfo,
+  PluginMeta,
 } from "../../../src/brand-layout/types";
 
 /** Base configuration — was config.json in the original plugin. */
@@ -154,6 +155,49 @@ export const baseConfig: Config = {
     logo: null,
   },
 };
+
+/* ---------------- sign-in (email gate) + update check ----------------
+   The plugin is gated to a list of work emails. The authoritative list lives in
+   the hosted plugin-meta.json (GitHub) so it can change without a rebuild; this
+   baked list is the offline fallback (and what's used until GitHub is wired up).
+   Update both by sending the new email — it's added here AND to the JSON. */
+
+export const BAKED_ALLOWED_EMAILS: string[] = [
+  "mahmoud@telfaz.com",
+  "bilal@telfaz.com",
+  "sultan@telfaz.com",
+  "ibrahiem@telfaz.com",
+  "shorouk.ezz@tshweash.com",
+  "eliwa@tshweash.com",
+  "youssef@telfaz.com",
+  "razzaz@telfaz.com",
+  "r.bagasi@tshweash.com",
+  "feras@telfaz.com",
+  "e.osama@tshweash.com",
+];
+
+export const normalizeEmail = (e: string): string => e.trim().toLowerCase();
+
+export const isValidEmail = (e: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
+
+/** True if `email` is in `list` (case/space-insensitive). */
+export function isEmailAllowed(email: string | null | undefined, list: string[]): boolean {
+  if (!email) return false;
+  const target = normalizeEmail(email);
+  return list.some((e) => normalizeEmail(e) === target);
+}
+
+/** Semver-ish compare: returns true if `latest` is newer than `current`. */
+export function isNewerVersion(latest: string, current: string): boolean {
+  const a = latest.split(".").map((n) => parseInt(n, 10) || 0);
+  const b = current.split(".").map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const da = a[i] || 0;
+    const db = b[i] || 0;
+    if (da !== db) return da > db;
+  }
+  return false;
+}
 
 /* ---------------- deep merge + overrides ---------------- */
 

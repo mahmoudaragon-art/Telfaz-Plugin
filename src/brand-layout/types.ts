@@ -158,6 +158,20 @@ export interface VerifyResult {
 }
 
 /**
+ * Remote plugin metadata (hosted JSON on GitHub). Drives the startup
+ * check-for-update and the email sign-in gate. If the fetch fails the plugin
+ * falls back to the values baked into the build.
+ */
+export interface PluginMeta {
+  /** Latest published version, e.g. "1.0.1". */
+  version: string;
+  /** Where to download the new .ccx (shown in the update notice). */
+  downloadUrl?: string;
+  /** Work emails allowed to use the plugin (case-insensitive). */
+  allowedEmails: string[];
+}
+
+/**
  * Serializable folder reference handed to the webview. The actual UXP folder
  * entry can't cross the bridge, so the host keeps it and only sends the path.
  */

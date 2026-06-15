@@ -117,6 +117,7 @@ const manifest: UXP_Manifest = {
       domains: [
         "https://hyperbrew.co",
         "https://github.com",
+        "https://raw.githubusercontent.com", // plugin-meta.json (update check + sign-in list)
         "https://vitejs.dev",
         "https://svelte.dev",
         "https://reactjs.org",

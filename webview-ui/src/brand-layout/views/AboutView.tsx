@@ -6,9 +6,12 @@ import type { API } from "../../../../src/api/api";
 interface Props {
   cfg: Config;
   api: API;
+  /** Currently signed-in work email (sign-in gate). */
+  authEmail?: string | null;
+  onSignOut?: () => void;
 }
 
-export const AboutView: React.FC<Props> = ({ cfg, api }) => {
+export const AboutView: React.FC<Props> = ({ cfg, api, authEmail, onSignOut }) => {
   const { about } = cfg;
   const [version, setVersion] = useState("1.0.0");
   useEffect(() => {
@@ -47,6 +50,17 @@ export const AboutView: React.FC<Props> = ({ cfg, api }) => {
           {about.email || "—"}
         </a>
       </div>
+      {authEmail && (
+        <div className="card about-account">
+          <div className="about-account-row">
+            <span className="about-account-label">Signed in as</span>
+            <span className="about-account-email">{authEmail}</span>
+          </div>
+          <button className="btn-ghost about-signout" onClick={onSignOut}>
+            Sign out
+          </button>
+        </div>
+      )}
       <div className="about-foot">Brand Layout · Photoshop &amp; Illustrator · UXP</div>
     </section>
   );

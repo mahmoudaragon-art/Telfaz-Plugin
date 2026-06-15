@@ -9,15 +9,20 @@ import {
   VerifyResult,
   TcFont,
   TcWriteOptions,
+  PluginMeta,
   baseConfig,
   buildBaseName,
   buildBaseNameForSize,
   assetDisplayName,
   mergeOverrides,
   parseJSON,
+  BAKED_ALLOWED_EMAILS,
+  isEmailAllowed,
+  isNewerVersion,
 } from "./config";
 import type { API } from "../../../src/api/api";
 import { LogoMark } from "./Icons";
+import { SignIn } from "./views/SignIn";
 import { PlaceView } from "./views/PlaceView";
 import { AdaptGuideModal, type GuideTargets } from "./views/AdaptGuideModal";
 import { BrandsView } from "./views/BrandsView";
@@ -59,6 +64,27 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
   // Simple confirmation popup (e.g. "Done" after an adaptation finishes).
   const [popup, setPopup] = useState<{ title: string; body?: string } | null>(null);
 
+  /* ---- sign-in gate + update check ---- */
+  // Remote list/version (GitHub); null until fetched, then baked values are the
+  // fallback. `authReady` gates the first paint so the sign-in screen doesn't flash.
+  const [meta, setMeta] = useState<PluginMeta | null>(null);
+  const [authEmail, setAuthEmail] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState<boolean>(false);
+  const allowList = (meta?.allowedEmails?.length ? meta.allowedEmails : BAKED_ALLOWED_EMAILS);
+  const authed = isEmailAllowed(authEmail, allowList);
+  const rawVersion = useRef<string>("1.0.0");
+  const updateAvailable =
+    !!meta?.version && isNewerVersion(meta.version, rawVersion.current);
+
+  const signIn = (email: string) => {
+    setAuthEmail(email);
+    api.kvSet("authEmail", email).catch(() => {});
+  };
+  const signOut = () => {
+    setAuthEmail(null);
+    api.kvSet("authEmail", "").catch(() => {});
+  };
+
   const statusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const setStatus = (msg: string, kind = "") => {
     setStatusState({ msg, kind });
@@ -83,7 +109,25 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
         /* ignore */
       }
       try {
-        setVersion(formatVersion(await api.getPluginVersion()));
+        const v = await api.getPluginVersion();
+        rawVersion.current = v;
+        setVersion(formatVersion(v));
+      } catch {
+        /* ignore */
+      }
+      // Sign-in gate: load the saved email, then fetch the remote allow-list +
+      // version (best-effort; baked list is the fallback).
+      try {
+        const saved = (await api.kvGet("authEmail")) || "";
+        if (saved) setAuthEmail(saved);
+      } catch {
+        /* ignore */
+      } finally {
+        setAuthReady(true);
+      }
+      try {
+        const m = await api.getPluginMeta();
+        if (m) setMeta(m);
       } catch {
         /* ignore */
       }
@@ -421,8 +465,37 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     { id: "about", label: "About", icon: <TabAbout /> },
   ];
 
+  // Gate: wait for the saved email to load (avoid a flash), then require a valid
+  // authorized email before showing the app.
+  if (!authReady) {
+    return <div className="app signin-loading" />;
+  }
+  if (!authed) {
+    return (
+      <SignIn
+        onSignIn={signIn}
+        isAllowed={(e) => isEmailAllowed(e, allowList)}
+        version={version}
+      />
+    );
+  }
+
   return (
     <div className="app">
+      {/* Update banner */}
+      {updateAvailable && (
+        <div className="update-banner">
+          <span>
+            New version {meta?.version} available.
+          </span>
+          {meta?.downloadUrl && (
+            <button className="update-link" onClick={() => api.openExternal(meta.downloadUrl!)}>
+              Download
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Header */}
       <header className="header">
         <div className="brand">
@@ -485,7 +558,9 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
             setStatus={setStatus}
           />
         )}
-        {view === "about" && <AboutView cfg={cfg} api={api} />}
+        {view === "about" && (
+          <AboutView cfg={cfg} api={api} authEmail={authEmail} onSignOut={signOut} />
+        )}
       </main>
 
       {/* Status bar */}
