@@ -71,6 +71,8 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
   const [meta, setMeta] = useState<PluginMeta | null>(null);
   const [authEmail, setAuthEmail] = useState<string | null>(null);
   const [authReady, setAuthReady] = useState<boolean>(false);
+  // Startup splash while we boot + check for updates.
+  const [checking, setChecking] = useState<boolean>(true);
   const allowList = (meta?.allowedEmails?.length ? meta.allowedEmails : BAKED_ALLOWED_EMAILS);
   const authed = isEmailAllowed(authEmail, allowList);
   const rawVersion = useRef<string>("1.0.0");
@@ -128,27 +130,16 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
       } finally {
         setAuthReady(true);
       }
+      // Update check (with a 6s timeout so an offline launch doesn't hang the
+      // "checking for updates" splash). Sizes/categories now come straight from
+      // baseConfig — the old per-user "overrides" are no longer applied (Settings
+      // was removed), so config changes always take effect.
       try {
-        const m = await api.getPluginMeta();
+        const m = await Promise.race([
+          api.getPluginMeta(),
+          new Promise<null>((r) => setTimeout(() => r(null), 6000)),
+        ]);
         if (m) setMeta(m);
-      } catch {
-        /* ignore */
-      }
-      // Persisted config/selection live in the host kv store (the webview's own
-      // localStorage is unreliable in UXP).
-      try {
-        const ov = parseJSON<Partial<Config>>(await api.kvGet("overrides"), {});
-        if (ov && Object.keys(ov).length) {
-          const merged = mergeOverrides(baseConfig, ov);
-          // A saved config REPLACES the sizes/categories lists, so newly-added
-          // defaults (e.g. the Google Ads sizes) wouldn't appear. Re-add any base
-          // size/category whose value isn't already present (keeps user edits).
-          const haveSizes = new Set(merged.sizes.map((s) => s.value));
-          for (const bs of baseConfig.sizes) if (!haveSizes.has(bs.value)) merged.sizes.push(bs);
-          const haveCats = new Set(merged.categories.map((c) => c.value));
-          for (const bc of baseConfig.categories) if (!haveCats.has(bc.value)) merged.categories.push(bc);
-          setCfg(merged);
-        }
       } catch {
         /* ignore */
       }
@@ -167,6 +158,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
       } catch {
         /* ignore */
       }
+      setChecking(false); // boot + update check done → reveal the app
     })();
   }, []);
 
@@ -467,10 +459,17 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     { id: "about", label: "About", icon: <TabAbout /> },
   ];
 
-  // Gate: wait for the saved email to load (avoid a flash), then require a valid
-  // authorized email before showing the app.
-  if (!authReady) {
-    return <div className="app signin-loading" />;
+  // Startup splash: shown while booting + checking for the latest version.
+  if (checking || !authReady) {
+    return (
+      <div className="signin">
+        <div className="signin-card">
+          <img className="signin-logo-img" src={telfazLogo} alt="Telfaz" />
+          <div className="signin-spinner" />
+          <div className="signin-sub">Checking for updates…</div>
+        </div>
+      </div>
+    );
   }
   // Forced update: if the hosted meta reports a newer version, the plugin is
   // locked behind an update wall until the user installs it.

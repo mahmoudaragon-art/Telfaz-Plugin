@@ -42,7 +42,7 @@ export const baseConfig: Config = {
   clients: ["Budget", "Nava", "Noug", "NEO", "SNB", "GWM"],
   // Categories are prepared up front; sizes get added per category later.
   categories: [
-    { label: "General", value: "general" },
+    { label: "Social Media", value: "general" },
     { label: "Google Ads", value: "google" },
     { label: "Cute Box", value: "cutebox" },
     { label: "Airport Screen", value: "airport" },
@@ -51,8 +51,9 @@ export const baseConfig: Config = {
   ],
   sizes: [
     { label: "Square", value: "Square", w: 1080, h: 1080, category: "general" },
-    { label: "Vertical", value: "Vertical", w: 1080, h: 1920, category: "general" },
     { label: "FHD", value: "FHD", w: 1920, h: 1080, category: "general" },
+    { label: "Vertical", value: "Vertical", w: 1080, h: 1920, category: "general" },
+    { label: "Instagram", value: "Instagram", w: 1080, h: 1350, category: "general" },
     // Google Ads — from SNB Creative Requirements (GDN / YouTube / PMAX / Search),
     // deduplicated by dimension. Static, video and logo formats.
     { label: "Square", value: "GoogleSquare", w: 1200, h: 1200, category: "google" },

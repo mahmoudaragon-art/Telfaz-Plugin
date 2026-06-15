@@ -44,6 +44,11 @@ await Promise.all([
   render(lightThemeIcon, 46, "light@2x.png"),
   render(pluginIcon, 48, "plugin-icon.png"),
   render(pluginIcon, 96, "plugin-icon@2x.png"),
+  // Panel/rail icon: filled orange TV with its own dark backdrop, so it stays
+  // visible on any UI theme (single icon for all themes — matches the plugins
+  // whose docked-rail icon renders correctly).
+  render(pluginIcon, 23, "panel.png"),
+  render(pluginIcon, 46, "panel@2x.png"),
 ]);
 
 console.log("✓ icons written to", outDir);

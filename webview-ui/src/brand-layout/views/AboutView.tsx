@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import type { Config } from "../config";
-import { LogoMarkLarge } from "../Icons";
 import type { API } from "../../../../src/api/api";
+import telfazLogo from "../assets/telfaz-logo.png";
 
 interface Props {
   cfg: Config;
@@ -23,12 +23,8 @@ export const AboutView: React.FC<Props> = ({ cfg, api, authEmail, onSignOut }) =
   return (
     <section className="view active">
       <div className="about-hero">
-        <div className={"about-logo" + (cfg.ui.logo ? " has-img" : "")}>
-          {cfg.ui.logo ? (
-            <img className="about-logo-img" src={cfg.ui.logo} alt="" />
-          ) : (
-            <LogoMarkLarge />
-          )}
+        <div className="about-logo has-img">
+          <img className="about-logo-img" src={telfazLogo} alt="Telfaz" />
         </div>
         <div className="about-name">Brand Layout</div>
         <div className="about-ver">v{version}</div>
