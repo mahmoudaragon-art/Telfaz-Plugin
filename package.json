@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "cross-env MODE=dev vite build --watch",
     "build": "cross-env MODE=build vite build",
-    "ccx": "node scripts/patch-bolt-host.mjs && cross-env MODE=package vite build",
-    "zip": "node scripts/patch-bolt-host.mjs && cross-env MODE=zip vite build",
+    "ccx": "cross-env MODE=package vite build",
+    "zip": "cross-env MODE=zip vite build",
     "preview": "vite preview",
     "ccx-install": "cross-env BOLT_ACTION=ccx-install vite",
     "ccx-uninstall": "cross-env BOLT_ACTION=ccx-uninstall vite",

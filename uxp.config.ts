@@ -21,16 +21,21 @@ const manifest: UXP_Manifest = {
   // manifestVersion 5 is the common denominator: Photoshop AND Illustrator
   // both support it. (v6 is Photoshop-only, which hid the plugin in Illustrator.)
   manifestVersion: 5,
+  // host entries carry a `data` block (apiVersion 2 = UXP v2 API). The Adobe
+  // installer needs this to generate the extension metadata; without it the
+  // .ccx fails with "manifest invalid" / "compatible app required".
   host: [
     {
       app: "PS",
       minVersion: "24.2.0",
+      data: { apiVersion: 2, loadEvent: "use" },
     },
     {
       app: "AI",
       minVersion: "26.0",
+      data: { apiVersion: 2, loadEvent: "use" },
     },
-          ],
+  ] as any,
   entrypoints: [
     {
       type: "panel",
@@ -145,7 +150,7 @@ const manifest: UXP_Manifest = {
       height: 48,
       path: "icons/plugin-icon.png",
       scale: [1, 2],
-      theme: ["darkest", "dark", "medium", "lightest", "light", "all"],
+      theme: ["darkest", "dark", "medium", "lightest", "light"],
       species: ["pluginList"],
     },
   ],
