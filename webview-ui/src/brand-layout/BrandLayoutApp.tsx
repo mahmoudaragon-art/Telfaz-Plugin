@@ -56,6 +56,8 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
   const [adaptItems, setAdaptItems] = useState<
     { size: SizeOption; base: string; artboardName?: string }[] | null
   >(null);
+  // Simple confirmation popup (e.g. "Done" after an adaptation finishes).
+  const [popup, setPopup] = useState<{ title: string; body?: string } | null>(null);
 
   const statusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const setStatus = (msg: string, kind = "") => {
@@ -248,6 +250,11 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
       if (res.placedMissing.length) parts.push(`no asset: ${res.placedMissing.join(", ")}`);
       if (res.failed.length) parts.push(`failed: ${res.failed.join(" · ")}`);
       setStatus(parts.join(" · "), res.failed.length || res.placedMissing.length ? "err" : "ok");
+      // Always confirm completion with a popup.
+      setPopup({
+        title: "Done",
+        body: `Adapted ${res.created} size${res.created === 1 ? "" : "s"}`,
+      });
     } catch (e: any) {
       setStatus("Adapt failed: " + (e?.message || e), "err");
     }
@@ -504,6 +511,19 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
           onRun={runAdapt}
           onCancel={() => setAdaptItems(null)}
         />
+      )}
+
+      {popup && (
+        <div className="guide-modal-backdrop" onClick={() => setPopup(null)}>
+          <div className="done-popup" onClick={(e) => e.stopPropagation()}>
+            <div className="done-popup-check">✓</div>
+            <div className="done-popup-title">{popup.title}</div>
+            {popup.body && <div className="done-popup-body">{popup.body}</div>}
+            <button className="btn-primary" onClick={() => setPopup(null)}>
+              OK
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
