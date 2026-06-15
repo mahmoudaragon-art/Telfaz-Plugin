@@ -472,6 +472,36 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
   if (!authReady) {
     return <div className="app signin-loading" />;
   }
+  // Forced update: if the hosted meta reports a newer version, the plugin is
+  // locked behind an update wall until the user installs it.
+  if (updateAvailable) {
+    return (
+      <div className="signin">
+        <div className="signin-card">
+          <div className="signin-logo">
+            <LogoMark />
+          </div>
+          <div className="signin-title">Update required</div>
+          <div className="signin-sub">
+            A new version (V{meta?.version}) is available. Please update to keep using Brand Layout.
+          </div>
+          {meta?.downloadUrl ? (
+            <button
+              className="btn-primary signin-btn"
+              onClick={() => api.openExternal(meta.downloadUrl!)}
+            >
+              Download update
+            </button>
+          ) : (
+            <div className="signin-error">Ask the admin for the new version.</div>
+          )}
+          <div className="signin-foot">
+            Installed {version} · latest V{meta?.version}
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (!authed) {
     return (
       <SignIn
@@ -484,20 +514,6 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
 
   return (
     <div className="app">
-      {/* Update banner */}
-      {updateAvailable && (
-        <div className="update-banner">
-          <span>
-            New version {meta?.version} available.
-          </span>
-          {meta?.downloadUrl && (
-            <button className="update-link" onClick={() => api.openExternal(meta.downloadUrl!)}>
-              Download
-            </button>
-          )}
-        </div>
-      )}
-
       {/* Header */}
       <header className="header">
         <div className="brand">

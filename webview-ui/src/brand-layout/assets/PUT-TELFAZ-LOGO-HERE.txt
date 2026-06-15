@@ -1,0 +1,11 @@
+Save the Telfaz logo in THIS folder with the exact name:
+
+    telfaz-logo.png
+
+- PNG with a transparent background (the cream/white version you sent is perfect — it sits on a dark card).
+- Any size is fine; it will be scaled automatically.
+
+Once it's here, tell Claude and it will be bundled into the plugin
+(shown on the sign-in screen and the header), then a new .ccx is built.
+
+You can delete this .txt file afterwards.
