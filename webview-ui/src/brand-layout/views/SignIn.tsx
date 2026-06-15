@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { LogoMark } from "../Icons";
 import { isValidEmail } from "../config";
+import telfazLogo from "../assets/telfaz-logo.png";
 
 interface Props {
   /** Called with the typed email when it passes the allow-list check. */
@@ -36,9 +36,7 @@ export const SignIn: React.FC<Props> = ({ onSignIn, isAllowed, version }) => {
   return (
     <div className="signin">
       <div className="signin-card">
-        <div className="signin-logo">
-          <LogoMark />
-        </div>
+        <img className="signin-logo-img" src={telfazLogo} alt="Telfaz" />
         <div className="signin-title">Brand Layout</div>
         <div className="signin-sub">Sign in with your work email to continue</div>
 

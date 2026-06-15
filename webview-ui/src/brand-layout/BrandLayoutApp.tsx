@@ -21,8 +21,8 @@ import {
   isNewerVersion,
 } from "./config";
 import type { API } from "../../../src/api/api";
-import { LogoMark } from "./Icons";
 import { SignIn } from "./views/SignIn";
+import telfazLogo from "./assets/telfaz-logo.png";
 import { PlaceView } from "./views/PlaceView";
 import { AdaptGuideModal, type GuideTargets } from "./views/AdaptGuideModal";
 import { BrandsView } from "./views/BrandsView";
@@ -478,9 +478,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     return (
       <div className="signin">
         <div className="signin-card">
-          <div className="signin-logo">
-            <LogoMark />
-          </div>
+          <img className="signin-logo-img" src={telfazLogo} alt="Telfaz" />
           <div className="signin-title">Update required</div>
           <div className="signin-sub">
             A new version (V{meta?.version}) is available. Please update to keep using Brand Layout.
@@ -518,10 +516,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
       <header className="header">
         <div className="brand">
           <button className="brand-logo-btn" onClick={openSite} title="telfaz.com">
-            <div className="logo-mark" style={{ display: themeUi.logo ? "none" : "flex" }}>
-              <LogoMark />
-            </div>
-            {themeUi.logo && <img className="logo-img" src={themeUi.logo} alt="" />}
+            <img className="header-logo-img" src={telfazLogo} alt="Telfaz" />
           </button>
           <div className="brand-text">
             <span className="brand-title-row">
