@@ -2,17 +2,22 @@
  * Cut a new release: bump the version in package.json + plugin-meta.json, then
  * build the distributable .ccx. Prints the remaining manual steps.
  *
- *   node scripts/release.mjs 1.0.1
- *   (or)  npm run release 1.0.1
+ *   npm run release 1.1     (→ V1.1)
+ *   npm run release 2       (→ V2)
+ *   npm run release 2.2     (→ V2.2)
  */
 import fs from "node:fs";
 import { execSync } from "node:child_process";
 
-const v = process.argv[2];
-if (!/^\d+\.\d+\.\d+$/.test(v || "")) {
-  console.error("Usage: npm run release <version>   e.g.  npm run release 1.0.1");
+const input = process.argv[2];
+if (!/^\d+(\.\d+){0,2}$/.test(input || "")) {
+  console.error("Usage: npm run release <version>   e.g.  npm run release 1.1  |  2  |  2.2");
   process.exit(1);
 }
+// Display is major.minor, but store a full 3-part semver (the installer needs it).
+const parts = input.split(".").map(Number);
+while (parts.length < 3) parts.push(0);
+const v = parts.join(".");
 
 const writeJSON = (file, obj) => fs.writeFileSync(file, JSON.stringify(obj, null, 2) + "\n");
 
