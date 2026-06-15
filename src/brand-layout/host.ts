@@ -1529,39 +1529,79 @@ export async function setForegroundColor(hex: string) {
 
 /* ---------------- verify assets ---------------- */
 
+// Every expected asset base name, honouring the per-client / per-language /
+// asset-template rules (so we don't generate impossible combos like
+// "NEO_SM_Budget_Square_AR_TC"). Deduped.
 function buildAllCombos(cfg: Config): string[] {
-  const combos: string[] = [];
-  for (const client of cfg.clients)
-    for (const size of cfg.sizes)
-      for (const lang of cfg.languages)
-        for (const tc of cfg.tc)
-          combos.push(
-            cfg.namePattern
-              .replace("{client}", client)
-              .replace("{size}", size.value)
-              .replace("{lang}", lang.value)
-              .replace("{tc}", tc.value),
-          );
-  return combos;
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const add = (name: string) => {
+    const k = name.toLowerCase();
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(name);
+    }
+  };
+  for (const client of cfg.clients) {
+    for (const size of cfg.sizes) {
+      if (size.clients && !size.clients.includes(client)) continue; // wrong client
+      for (const lang of cfg.languages) {
+        if (size.langs && !size.langs.includes(lang.value as "AR" | "EN")) continue;
+        if (size.asset) {
+          // Category-templated name (Cute Box / Social Media) — no client/tc token.
+          add(size.asset.replace(/\{lang\}/gi, lang.value));
+        } else {
+          for (const tc of cfg.tc) {
+            add(
+              cfg.namePattern
+                .replace("{client}", client)
+                .replace("{size}", size.value)
+                .replace("{lang}", lang.value)
+                .replace("{tc}", tc.value),
+            );
+          }
+        }
+      }
+    }
+  }
+  return out;
 }
 
 export async function verifyAssets(cfg: Config): Promise<VerifyResult> {
   if (!currentFolder) throw new Error("Connect the folder first");
-  const entries = await currentFolder.getEntries();
-  const names = new Set(
-    entries.filter((e: any) => e.isFile).map((e: any) => e.name.toLowerCase()),
-  );
-  const combos = buildAllCombos(cfg);
-  let present = 0;
+  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+  // Collect every file name in the folder + subfolders once (covers the AR/EN
+  // subfolders), normalising whitespace like the resolver does.
+  const fileSet = new Set<string>();
+  const collect = async (folder: any, depth: number) => {
+    let entries: any[];
+    try {
+      entries = await folder.getEntries();
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (e.isFile) fileSet.add(norm(e.name));
+      else if (e.isFolder && depth > 0) await collect(e, depth - 1);
+    }
+  };
+  await collect(currentFolder, 4);
+
+  const hostExt = HOST === "Illustrator" ? "ai" : "psd";
+  const exists = (base: string): boolean => {
+    const hasExt = /\.[a-z0-9]{2,4}$/i.test(base);
+    const cands = hasExt
+      ? [base]
+      : [base + "." + hostExt, ...cfg.extensions.map((e) => base + "." + e)];
+    return cands.some((c) => fileSet.has(norm(c)));
+  };
+
+  const present: string[] = [];
   const missing: string[] = [];
-  for (const base of combos) {
-    const found = cfg.extensions.some((ext) =>
-      names.has((base + "." + ext).toLowerCase()),
-    );
-    if (found) present++;
-    else missing.push(base);
+  for (const name of buildAllCombos(cfg)) {
+    (exists(name) ? present : missing).push(name);
   }
-  return { present, total: combos.length, missing };
+  return { present, total: present.length + missing.length, missing };
 }
 
 /* ---------------- logo picker ---------------- */

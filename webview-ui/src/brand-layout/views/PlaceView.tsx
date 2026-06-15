@@ -199,22 +199,28 @@ export const PlaceView: React.FC<Props> = ({
           <div className="verify-results show">
             <div className="verify-head">
               <div className="verify-summary">
-                {verify.present} / {verify.total} found
+                {verify.present.length} / {verify.total} found
               </div>
               <button className="verify-close" onClick={onCloseVerify}>
                 ✕
               </button>
             </div>
             <div className="verify-list">
-              {verify.missing.length === 0 ? (
-                <div className="verify-row ok"> All assets present</div>
+              {verify.present.length === 0 && verify.missing.length === 0 ? (
+                <div className="verify-row">No assets to check</div>
               ) : (
-                verify.missing.map((m) => (
-                  <div key={m} className="verify-row miss">
-                    {" "}
-                    {m}
-                  </div>
-                ))
+                <>
+                  {verify.present.map((p) => (
+                    <div key={"p:" + p} className="verify-row ok">
+                      {p}
+                    </div>
+                  ))}
+                  {verify.missing.map((m) => (
+                    <div key={"m:" + m} className="verify-row miss">
+                      {m}
+                    </div>
+                  ))}
+                </>
               )}
             </div>
           </div>

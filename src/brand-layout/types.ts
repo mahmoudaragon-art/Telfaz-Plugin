@@ -155,8 +155,10 @@ export type Selection = {
 };
 
 export interface VerifyResult {
-  present: number;
+  /** Base names that were found in the folder. */
+  present: string[];
   total: number;
+  /** Base names that were NOT found. */
   missing: string[];
 }
 
