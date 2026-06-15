@@ -31,11 +31,8 @@ import { TabAbout, TabBrands, TabPlace } from "./Icons";
 
 type View = "place" | "brands" | "settings" | "about";
 
-/** "1.0.0" → "V1.0" (major.minor). */
-const formatVersion = (v: string): string => {
-  const [maj = "1", min = "0"] = (v || "").split(".");
-  return `V${maj}.${min}`;
-};
+/** "1.0.1" → "V1.0.1" (full version, so updates are visible). */
+const formatVersion = (v: string): string => `V${v || "1.0.0"}`;
 
 export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
   const [cfg, setCfg] = useState<Config>(() => mergeOverrides(baseConfig, {}));
