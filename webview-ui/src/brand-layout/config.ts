@@ -75,19 +75,19 @@ export const baseConfig: Config = {
     // AR/EN subfolders, found by the recursive resolver). "{lang}" → AR/EN.
     // The "Digital" sizes exist only in Arabic (langs:["AR"]) so they drop out
     // of the list when English is selected.
-    { label: "Budget Website", value: "CB_Budget", w: 630, h: 300, category: "cutebox", asset: "Cute box {lang} budget website (630-300) {lang}.pdf" },
+    { label: "Budget Website", value: "CB_Budget", w: 630, h: 300, category: "cutebox", clients: ["Budget"], asset: "Cute box {lang} budget website (630-300) {lang}.pdf" },
     // Application (375×200) ships in three variants — kept as separate sizes so
     // each is created as its own artboard/file with its own name.
-    { label: "Application — Full Visuals", value: "CB_Application_Full", w: 375, h: 200, category: "cutebox", asset: "Cute box {lang}Application 375-200 full visuals {lang}.pdf" },
-    { label: "Application — No Txt", value: "CB_Application_NoTxt", w: 375, h: 200, category: "cutebox", asset: "Cute box {lang}Application 375-200 No Txt {lang}.pdf" },
-    { label: "Application — Txt Only", value: "CB_Application_TxtOnly", w: 375, h: 200, category: "cutebox", asset: "Cute box {lang}Application 375-200 Txt only {lang}.pdf" },
-    { label: "Landscape", value: "CB_Landscape", w: 1200, h: 628, category: "cutebox", asset: "Cute box {lang}Landscape image size (1200 x 628) {lang}.pdf" },
-    { label: "Portrait", value: "CB_Portrait", w: 960, h: 1200, category: "cutebox", asset: "Cute box {lang}Portrait image size (960 x 1200) {lang}.pdf" },
-    { label: "Digital 344×1032", value: "CB_Digital_344x1032", w: 344, h: 1032, category: "cutebox", langs: ["AR"], asset: "Cute box {lang}Digital (344-1032) {lang}.pdf" },
-    { label: "Digital 768×432", value: "CB_Digital_768x432", w: 768, h: 432, category: "cutebox", langs: ["AR"], asset: "Cute box {lang}Digital (768-432) {lang}.pdf" },
-    { label: "Digital 1080×1920", value: "CB_Digital_1080x1920", w: 1080, h: 1920, category: "cutebox", langs: ["AR"], asset: "Cute box {lang}Digital (1080-1920) {lang}.pdf" },
-    { label: "Digital 2048×576", value: "CB_Digital_2048x576", w: 2048, h: 576, category: "cutebox", langs: ["AR"], asset: "Cute box {lang}Digital (2048-576) {lang}.pdf" },
-    { label: "Digital 2816×960", value: "CB_Digital_2816x960", w: 2816, h: 960, category: "cutebox", langs: ["AR"], asset: "Cute box {lang}Digital (2816-960) {lang}.pdf" },
+    { label: "Application — Full Visuals", value: "CB_Application_Full", w: 375, h: 200, category: "cutebox", clients: ["Budget"], asset: "Cute box {lang}Application 375-200 full visuals {lang}.pdf" },
+    { label: "Application — No Txt", value: "CB_Application_NoTxt", w: 375, h: 200, category: "cutebox", clients: ["Budget"], asset: "Cute box {lang}Application 375-200 No Txt {lang}.pdf" },
+    { label: "Application — Txt Only", value: "CB_Application_TxtOnly", w: 375, h: 200, category: "cutebox", clients: ["Budget"], asset: "Cute box {lang}Application 375-200 Txt only {lang}.pdf" },
+    { label: "Landscape", value: "CB_Landscape", w: 1200, h: 628, category: "cutebox", clients: ["Budget"], asset: "Cute box {lang}Landscape image size (1200 x 628) {lang}.pdf" },
+    { label: "Portrait", value: "CB_Portrait", w: 960, h: 1200, category: "cutebox", clients: ["Budget"], asset: "Cute box {lang}Portrait image size (960 x 1200) {lang}.pdf" },
+    { label: "Digital 344×1032", value: "CB_Digital_344x1032", w: 344, h: 1032, category: "cutebox", clients: ["Budget"], langs: ["AR"], asset: "Cute box {lang}Digital (344-1032) {lang}.pdf" },
+    { label: "Digital 768×432", value: "CB_Digital_768x432", w: 768, h: 432, category: "cutebox", clients: ["Budget"], langs: ["AR"], asset: "Cute box {lang}Digital (768-432) {lang}.pdf" },
+    { label: "Digital 1080×1920", value: "CB_Digital_1080x1920", w: 1080, h: 1920, category: "cutebox", clients: ["Budget"], langs: ["AR"], asset: "Cute box {lang}Digital (1080-1920) {lang}.pdf" },
+    { label: "Digital 2048×576", value: "CB_Digital_2048x576", w: 2048, h: 576, category: "cutebox", clients: ["Budget"], langs: ["AR"], asset: "Cute box {lang}Digital (2048-576) {lang}.pdf" },
+    { label: "Digital 2816×960", value: "CB_Digital_2816x960", w: 2816, h: 960, category: "cutebox", clients: ["Budget"], langs: ["AR"], asset: "Cute box {lang}Digital (2816-960) {lang}.pdf" },
   ],
   languages: [
     { label: "EN", value: "EN" },
