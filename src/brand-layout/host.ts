@@ -79,7 +79,7 @@ export async function getPluginVersion(): Promise<string> {
    fails. Update the URL below once the GitHub repo exists. */
 
 const META_URL =
-  "https://raw.githubusercontent.com/TELFAZ-PLUGIN/telfaz-plugin/main/plugin-meta.json";
+  "https://raw.githubusercontent.com/mahmoudaragon-art/Telfaz-Plugin/main/plugin-meta.json";
 
 export async function getPluginMeta(): Promise<PluginMeta | null> {
   try {
