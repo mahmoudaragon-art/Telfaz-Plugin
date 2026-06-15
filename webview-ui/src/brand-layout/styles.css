@@ -740,13 +740,13 @@ body {
 }
 /* When a custom logo is uploaded, drop the boxed frame and show it cleanly. */
 .about-logo.has-img {
-  width: auto; max-width: 200px; height: 66px;
+  width: auto; max-width: 290px; height: 92px;
   background: none; border: none; box-shadow: none; border-radius: 0;
   overflow: visible;
   animation: none;
   filter: drop-shadow(0 0 22px var(--accent-glow));
 }
-.about-logo-img { height: 100%; width: auto; max-width: 200px; object-fit: contain; }
+.about-logo-img { height: 100%; width: auto; max-width: 290px; object-fit: contain; }
 .about-name {
   font-size: 21px; font-weight: 800; letter-spacing: -0.5px;
   background: linear-gradient(96deg, #ffffff, var(--accent-bright));
@@ -1102,8 +1102,8 @@ body {
 .signin-logo svg { width: 100%; height: 100%; }
 /* Telfaz wordmark on the sign-in / update card */
 .signin-logo-img {
-  width: 62%; max-width: 180px; height: auto;
-  margin-bottom: 14px; object-fit: contain;
+  width: 84%; max-width: 260px; height: auto;
+  margin-bottom: 18px; object-fit: contain;
 }
 /* Telfaz wordmark in the header */
 .header-logo-img {
