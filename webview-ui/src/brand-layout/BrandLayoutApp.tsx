@@ -26,9 +26,8 @@ import { SignIn } from "./views/SignIn";
 import { PlaceView } from "./views/PlaceView";
 import { AdaptGuideModal, type GuideTargets } from "./views/AdaptGuideModal";
 import { BrandsView } from "./views/BrandsView";
-import { SettingsView } from "./views/SettingsView";
 import { AboutView } from "./views/AboutView";
-import { TabAbout, TabBrands, TabPlace, TabSettings } from "./Icons";
+import { TabAbout, TabBrands, TabPlace } from "./Icons";
 
 type View = "place" | "brands" | "settings" | "about";
 
@@ -63,6 +62,8 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
   >(null);
   // Simple confirmation popup (e.g. "Done" after an adaptation finishes).
   const [popup, setPopup] = useState<{ title: string; body?: string } | null>(null);
+  // Prompt to pick the source folder right after sign-in.
+  const [folderPrompt, setFolderPrompt] = useState<boolean>(false);
 
   /* ---- sign-in gate + update check ---- */
   // Remote list/version (GitHub); null until fetched, then baked values are the
@@ -79,6 +80,8 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
   const signIn = (email: string) => {
     setAuthEmail(email);
     api.kvSet("authEmail", email).catch(() => {});
+    // Right after sign-in, prompt for the source folder if none is connected.
+    if (!connected) setFolderPrompt(true);
   };
   const signOut = () => {
     setAuthEmail(null);
@@ -461,7 +464,6 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
   const tabs: { id: View; label: string; icon: React.ReactNode }[] = [
     { id: "place", label: "Place", icon: <TabPlace /> },
     { id: "brands", label: "Brands", icon: <TabBrands /> },
-    { id: "settings", label: "Settings", icon: <TabSettings /> },
     { id: "about", label: "About", icon: <TabAbout /> },
   ];
 
@@ -548,16 +550,6 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
             onPickColor={handlePickColor}
           />
         )}
-        {view === "settings" && (
-          <SettingsView
-            key={JSON.stringify(cfg)}
-            cfg={cfg}
-            api={api}
-            onLivePreview={setLivePreviewUi}
-            onSave={handleSaveSettings}
-            setStatus={setStatus}
-          />
-        )}
         {view === "about" && (
           <AboutView cfg={cfg} api={api} authEmail={authEmail} onSignOut={signOut} />
         )}
@@ -596,6 +588,33 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
             {popup.body && <div className="done-popup-body">{popup.body}</div>}
             <button className="btn-primary" onClick={() => setPopup(null)}>
               OK
+            </button>
+          </div>
+        </div>
+      )}
+
+      {folderPrompt && (
+        <div className="guide-modal-backdrop">
+          <div className="done-popup" onClick={(e) => e.stopPropagation()}>
+            <div className="done-popup-title">Choose your assets folder</div>
+            <div className="done-popup-body">
+              Select your Source Folder — the brand assets folder on this computer.
+            </div>
+            <button
+              className="btn-primary"
+              onClick={async () => {
+                await handleConnect();
+                setFolderPrompt(false);
+              }}
+            >
+              Choose Folder
+            </button>
+            <button
+              className="btn-ghost"
+              style={{ width: "auto", padding: "6px 18px" }}
+              onClick={() => setFolderPrompt(false)}
+            >
+              Later
             </button>
           </div>
         </div>

@@ -54,6 +54,7 @@ const manifest: UXP_Manifest = {
           path: "icons/dark.png",
           scale: [1, 2],
           theme: ["darkest", "dark", "medium"],
+          species: ["chrome", "generic"],
         },
         {
           width: 23,
@@ -61,6 +62,7 @@ const manifest: UXP_Manifest = {
           path: "icons/light.png",
           scale: [1, 2],
           theme: ["lightest", "light"],
+          species: ["chrome", "generic"],
         },
       ],
     },

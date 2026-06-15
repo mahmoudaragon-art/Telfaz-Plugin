@@ -1079,7 +1079,11 @@ body {
   position: fixed; inset: 0;
   display: flex; align-items: center; justify-content: center;
   padding: var(--sp-4);
-  background: var(--bg, #0c0c0e);
+  /* subtle orange gradient glow over the dark background */
+  background:
+    radial-gradient(135% 95% at 50% -12%, rgba(255, 92, 26, 0.20), transparent 60%),
+    radial-gradient(120% 70% at 50% 112%, rgba(255, 92, 26, 0.10), transparent 55%),
+    var(--bg, #0c0c0e);
 }
 .signin-card {
   width: min(360px, 92vw);
