@@ -31,7 +31,7 @@ const manifest: UXP_Manifest = {
       data: { apiVersion: 2, loadEvent: "use" },
     },
     {
-      app: "AI",
+      app: "ILST",
       minVersion: "26.0",
       data: { apiVersion: 2, loadEvent: "use" },
     },
