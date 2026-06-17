@@ -142,18 +142,19 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
       } catch {
         /* ignore */
       }
-      // Load the user-managed sizes (Settings → Sizes) — the full source of
-      // truth for sizes + categories; everything else comes from baseConfig.
-      // (Own key, so any older saved config can't interfere.)
+      // Load the user-managed sizes (Settings → Sizes). The saved config wins for
+      // any size it contains; sizes/categories newly added in code are appended
+      // so they always show up (you can still edit/remove them in Settings).
       try {
         const sc = parseJSON<Partial<Config>>(await api.kvGet("sizeCfg"), {});
         if (sc && (sc.sizes?.length || sc.categories?.length)) {
-          setCfg(
-            mergeOverrides(baseConfig, {
-              sizes: sc.sizes ?? baseConfig.sizes,
-              categories: sc.categories ?? baseConfig.categories,
-            }),
-          );
+          const sizes = sc.sizes ? [...sc.sizes] : [...baseConfig.sizes];
+          const haveS = new Set(sizes.map((s) => s.value));
+          for (const bs of baseConfig.sizes) if (!haveS.has(bs.value)) sizes.push(bs);
+          const categories = sc.categories ? [...sc.categories] : [...baseConfig.categories];
+          const haveC = new Set(categories.map((c) => c.value));
+          for (const bc of baseConfig.categories) if (!haveC.has(bc.value)) categories.push(bc);
+          setCfg(mergeOverrides(baseConfig, { sizes, categories }));
         }
       } catch {
         /* ignore */

@@ -71,6 +71,22 @@ export const baseConfig: Config = {
     { label: "Video Square", value: "GoogleVideoSquare", w: 1080, h: 1080, category: "google" },
     { label: "Video Vertical", value: "GoogleVideoVertical", w: 1080, h: 1920, category: "google" },
     { label: "Logo Landscape", value: "GoogleLogoLandscape", w: 1200, h: 300, category: "google" },
+    // Google Ads — NEO (Arabic). Files: "Paid_Ads_Neo_AR_{W}x{H}.pdf".
+    // Label = the dimensions; artboard name = Client-Lang-Dimensions.
+    { label: "160x600", value: "Neo_GA_160x600", w: 160, h: 600, category: "google", clients: ["NEO"], langs: ["AR"], asset: "Paid_Ads_Neo_{lang}_160x600.pdf", artboardName: "{client}-{lang}-160x600" },
+    { label: "320x50", value: "Neo_GA_320x50", w: 320, h: 50, category: "google", clients: ["NEO"], langs: ["AR"], asset: "Paid_Ads_Neo_{lang}_320x50.pdf", artboardName: "{client}-{lang}-320x50" },
+    { label: "728x90", value: "Neo_GA_728x90", w: 728, h: 90, category: "google", clients: ["NEO"], langs: ["AR"], asset: "Paid_Ads_Neo_{lang}_728x90.pdf", artboardName: "{client}-{lang}-728x90" },
+    { label: "900x1600", value: "Neo_GA_900x1600", w: 900, h: 1600, category: "google", clients: ["NEO"], langs: ["AR"], asset: "Paid_Ads_Neo_{lang}_900x1600.pdf", artboardName: "{client}-{lang}-900x1600" },
+    { label: "960x1200", value: "Neo_GA_960x1200", w: 960, h: 1200, category: "google", clients: ["NEO"], langs: ["AR"], asset: "Paid_Ads_Neo_{lang}_960x1200.pdf", artboardName: "{client}-{lang}-960x1200" },
+    { label: "970x90", value: "Neo_GA_970x90", w: 970, h: 90, category: "google", clients: ["NEO"], langs: ["AR"], asset: "Paid_Ads_Neo_{lang}_970x90.pdf", artboardName: "{client}-{lang}-970x90" },
+    { label: "970x250", value: "Neo_GA_970x250", w: 970, h: 250, category: "google", clients: ["NEO"], langs: ["AR"], asset: "Paid_Ads_Neo_{lang}_970x250.pdf", artboardName: "{client}-{lang}-970x250" },
+    { label: "1000x1500", value: "Neo_GA_1000x1500", w: 1000, h: 1500, category: "google", clients: ["NEO"], langs: ["AR"], asset: "Paid_Ads_Neo_{lang}_1000x1500.pdf", artboardName: "{client}-{lang}-1000x1500" },
+    { label: "1080x1080", value: "Neo_GA_1080x1080", w: 1080, h: 1080, category: "google", clients: ["NEO"], langs: ["AR"], asset: "Paid_Ads_Neo_{lang}_1080x1080.pdf", artboardName: "{client}-{lang}-1080x1080" },
+    { label: "1080x1920", value: "Neo_GA_1080x1920", w: 1080, h: 1920, category: "google", clients: ["NEO"], langs: ["AR"], asset: "Paid_Ads_Neo_{lang}_1080x1920.pdf", artboardName: "{client}-{lang}-1080x1920" },
+    { label: "1200x300", value: "Neo_GA_1200x300", w: 1200, h: 300, category: "google", clients: ["NEO"], langs: ["AR"], asset: "Paid_Ads_Neo_{lang}_1200x300.pdf", artboardName: "{client}-{lang}-1200x300" },
+    { label: "1200x628", value: "Neo_GA_1200x628", w: 1200, h: 628, category: "google", clients: ["NEO"], langs: ["AR"], asset: "Paid_Ads_Neo_{lang}_1200x628.pdf", artboardName: "{client}-{lang}-1200x628" },
+    { label: "1200x1200", value: "Neo_GA_1200x1200", w: 1200, h: 1200, category: "google", clients: ["NEO"], langs: ["AR"], asset: "Paid_Ads_Neo_{lang}_1200x1200.pdf", artboardName: "{client}-{lang}-1200x1200" },
+    { label: "1920x1080", value: "Neo_GA_1920x1080", w: 1920, h: 1080, category: "google", clients: ["NEO"], langs: ["AR"], asset: "Paid_Ads_Neo_{lang}_1920x1080.pdf", artboardName: "{client}-{lang}-1920x1080" },
     // Cute Box — Budget client assets (AR & EN), real .pdf filenames (split into
     // AR/EN subfolders, found by the recursive resolver). "{lang}" → AR/EN.
     // The "Digital" sizes exist only in Arabic (langs:["AR"]) so they drop out
