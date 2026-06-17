@@ -142,15 +142,24 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
       } catch {
         /* ignore */
       }
-      // Apply saved Settings (appearance / T&C / brands / about). Sizes &
-      // categories are intentionally NOT taken from the override — they're
-      // managed in code (per-client / asset-template rules), so they always come
-      // from baseConfig and can't be broken by a stale saved config.
+      // Apply the saved config (the Sizes editor). The per-client naming rules
+      // (clients / langs / asset templates) are re-applied from code by value, so
+      // a saved config can never break them — the user controls label / size /
+      // category. Newly-added base sizes/categories are also surfaced.
       try {
         const ov = parseJSON<Partial<Config>>(await api.kvGet("overrides"), {});
         if (ov && Object.keys(ov).length) {
-          const { sizes: _s, categories: _c, ...rest } = ov;
-          setCfg(mergeOverrides(baseConfig, rest));
+          const merged = mergeOverrides(baseConfig, ov);
+          const byValue = new Map(baseConfig.sizes.map((s) => [s.value, s]));
+          merged.sizes = merged.sizes.map((s) => {
+            const b = byValue.get(s.value);
+            return b ? { ...s, clients: b.clients, langs: b.langs, asset: b.asset } : s;
+          });
+          const haveSizes = new Set(merged.sizes.map((s) => s.value));
+          for (const bs of baseConfig.sizes) if (!haveSizes.has(bs.value)) merged.sizes.push(bs);
+          const haveCats = new Set(merged.categories.map((c) => c.value));
+          for (const bc of baseConfig.categories) if (!haveCats.has(bc.value)) merged.categories.push(bc);
+          setCfg(merged);
         }
       } catch {
         /* ignore */
@@ -575,7 +584,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
         )}
         {view === "settings" && (
           <SettingsView
-            key={JSON.stringify(cfg.ui) + JSON.stringify(cfg.tcStyle)}
+            key={JSON.stringify(cfg.sizes)}
             cfg={cfg}
             api={api}
             onLivePreview={setLivePreviewUi}
