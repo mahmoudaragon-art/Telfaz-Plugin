@@ -30,8 +30,12 @@ export interface SizeOption {
    *  set + naming (e.g. NEO's .ai pattern vs Budget's "Social Media …" .pdf). */
   clients?: string[];
   /** Exact asset filename (with extension) when it doesn't follow the name pattern.
-   *  "{lang}" is replaced with the selected language. e.g. Cute Box .pdf assets. */
+   *  Placeholders {client} {lang} {tc} are filled in. e.g.
+   *  "NEO_Square_{lang}_{tc}.ai" or "Social Media {lang}Instagram {lang}.pdf". */
   asset?: string;
+  /** Explicit artboard/layer name (optional). Same {client}/{lang}/{tc}
+   *  placeholders. Falls back to the asset-derived or "Label WxH" name. */
+  artboardName?: string;
 }
 
 export interface Brand {

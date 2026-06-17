@@ -173,7 +173,7 @@ async function resolveAssetEntry(folder: any, base: string, cfg: Config) {
     return null;
   };
 
-  return await search(folder, 4);
+  return await search(folder, 8);
 }
 
 /** Resolve + place the linked asset for the current base name. Returns placed file name. */
@@ -1585,7 +1585,7 @@ export async function verifyAssets(cfg: Config): Promise<VerifyResult> {
       else if (e.isFolder && depth > 0) await collect(e, depth - 1);
     }
   };
-  await collect(currentFolder, 4);
+  await collect(currentFolder, 8);
 
   const hostExt = HOST === "Illustrator" ? "ai" : "psd";
   const exists = (base: string): boolean => {

@@ -13,7 +13,7 @@ import {
   baseConfig,
   buildBaseName,
   buildBaseNameForSize,
-  assetDisplayName,
+  resolveArtboardName,
   mergeOverrides,
   parseJSON,
   BAKED_ALLOWED_EMAILS,
@@ -142,24 +142,18 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
       } catch {
         /* ignore */
       }
-      // Apply the saved config (the Sizes editor). The per-client naming rules
-      // (clients / langs / asset templates) are re-applied from code by value, so
-      // a saved config can never break them — the user controls label / size /
-      // category. Newly-added base sizes/categories are also surfaced.
+      // Load the user-managed sizes (Settings → Sizes) — the full source of
+      // truth for sizes + categories; everything else comes from baseConfig.
+      // (Own key, so any older saved config can't interfere.)
       try {
-        const ov = parseJSON<Partial<Config>>(await api.kvGet("overrides"), {});
-        if (ov && Object.keys(ov).length) {
-          const merged = mergeOverrides(baseConfig, ov);
-          const byValue = new Map(baseConfig.sizes.map((s) => [s.value, s]));
-          merged.sizes = merged.sizes.map((s) => {
-            const b = byValue.get(s.value);
-            return b ? { ...s, clients: b.clients, langs: b.langs, asset: b.asset } : s;
-          });
-          const haveSizes = new Set(merged.sizes.map((s) => s.value));
-          for (const bs of baseConfig.sizes) if (!haveSizes.has(bs.value)) merged.sizes.push(bs);
-          const haveCats = new Set(merged.categories.map((c) => c.value));
-          for (const bc of baseConfig.categories) if (!haveCats.has(bc.value)) merged.categories.push(bc);
-          setCfg(merged);
+        const sc = parseJSON<Partial<Config>>(await api.kvGet("sizeCfg"), {});
+        if (sc && (sc.sizes?.length || sc.categories?.length)) {
+          setCfg(
+            mergeOverrides(baseConfig, {
+              sizes: sc.sizes ?? baseConfig.sizes,
+              categories: sc.categories ?? baseConfig.categories,
+            }),
+          );
         }
       } catch {
         /* ignore */
@@ -231,10 +225,9 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
       const base = buildBaseNameForSize(cfg, selection, sv);
       if (!size || !base) continue;
       const catLabel = cfg.categories.find((c) => c.value === size.category)?.label || "";
-      // Asset-named sizes (Cute Box) name the file/artboard after the asset
-      // (minus the "Cute box"/lang prefix); others use "Category Size WxH".
+      // Explicit artboard name (Settings) → asset-derived → "Category Size WxH".
       const artboardName =
-        assetDisplayName(size, selection.lang) ||
+        resolveArtboardName(size, selection) ||
         `${catLabel} ${size.label} ${size.w}X${size.h}`.trim();
       items.push({ base, size, artboardName });
     }
@@ -288,7 +281,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
       if (size && base) {
         // Cute Box → name the artboard after the asset (clean, no "Cute box"/lang
         // prefix); others fall back to "Label WxH" on the host.
-        const artboardName = assetDisplayName(size, selection.lang) || undefined;
+        const artboardName = resolveArtboardName(size, selection) || undefined;
         items.push({ size, base, artboardName });
       }
     }
@@ -368,7 +361,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
         ? cfg.categories.find((c) => c.value === selSize.category)?.label || ""
         : "";
       const artboardName = selSize
-        ? assetDisplayName(selSize, selection.lang) ||
+        ? resolveArtboardName(selSize, selection) ||
           `${catLabel} ${selSize.label} ${selSize.w}X${selSize.h}`.trim()
         : undefined;
       const opts: TcWriteOptions = {
@@ -460,16 +453,11 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
 
   /* ---- settings save (persist through host) ---- */
   const handleSaveSettings = (next: Config) => {
-    const overrides: Partial<Config> = {
-      ui: next.ui,
-      tcText: next.tcText,
-      tcStyle: next.tcStyle,
-      brands: next.brands,
-      about: next.about,
-      categories: next.categories,
-      sizes: next.sizes,
-    };
-    api.kvSet("overrides", JSON.stringify(overrides)).catch(() => {});
+    // The Sizes editor fully owns sizes + categories (filename, artboard name,
+    // dimensions, clients). Saved under its own key so it's the source of truth.
+    api
+      .kvSet("sizeCfg", JSON.stringify({ sizes: next.sizes, categories: next.categories }))
+      .catch(() => {});
     setCfg(mergeOverrides(next, {}));
     setLivePreviewUi(null);
   };

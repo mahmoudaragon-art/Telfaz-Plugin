@@ -240,12 +240,20 @@ export function parseJSON<T>(json: string | null, fallback: T): T {
 
 /* ---------------- selection + size helpers ---------------- */
 
+/** Fill {client}/{lang}/{tc} placeholders in a filename/name template. */
+export function fillTokens(tpl: string, s: Selection): string {
+  return tpl
+    .replace(/\{client\}/gi, s.client || "")
+    .replace(/\{lang\}/gi, s.lang || "")
+    .replace(/\{tc\}/gi, s.tc || "");
+}
+
 export function buildBaseName(cfg: Config, s: Selection): string | null {
   if (!s.client || !s.size || !s.lang || !s.tc) return null;
-  // Sizes with an explicit asset filename (e.g. Cute Box .pdf files) bypass the
-  // name pattern entirely — return the real filename with "{lang}" filled in.
+  // Sizes with an explicit asset filename (e.g. Cute Box / Social Media) bypass
+  // the name pattern — fill the {client}/{lang}/{tc} placeholders in it.
   const size = cfg.sizes.find((z) => z.value === s.size);
-  if (size?.asset) return size.asset.replace(/\{lang\}/gi, s.lang);
+  if (size?.asset) return fillTokens(size.asset, s);
   return cfg.namePattern
     .replace("{client}", s.client)
     .replace("{size}", s.size)
@@ -277,6 +285,15 @@ export function assetDisplayName(size: SizeOption, lang: string | null): string 
     .replace(/^\s*cute\s*box\s*/i, "") // drop "Cute box"
     .replace(/^\s*(AR|EN)\s*/i, "") // drop the leading language code
     .trim();
+}
+
+/**
+ * Artboard/layer name for a size: an explicit `artboardName` (with tokens)
+ * wins; otherwise the asset-derived clean name; null = caller uses "Label WxH".
+ */
+export function resolveArtboardName(size: SizeOption, s: Selection): string | null {
+  if (size.artboardName && size.artboardName.trim()) return fillTokens(size.artboardName, s);
+  return assetDisplayName(size, s.lang);
 }
 
 /** "Square — 1080×1080" */
