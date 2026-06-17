@@ -26,8 +26,9 @@ import telfazLogo from "./assets/telfaz-logo.png";
 import { PlaceView } from "./views/PlaceView";
 import { AdaptGuideModal, type GuideTargets } from "./views/AdaptGuideModal";
 import { BrandsView } from "./views/BrandsView";
+import { SettingsView } from "./views/SettingsView";
 import { AboutView } from "./views/AboutView";
-import { TabAbout, TabBrands, TabPlace } from "./Icons";
+import { TabAbout, TabBrands, TabPlace, TabSettings } from "./Icons";
 
 type View = "place" | "brands" | "settings" | "about";
 
@@ -131,15 +132,26 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
         setAuthReady(true);
       }
       // Update check (with a 6s timeout so an offline launch doesn't hang the
-      // "checking for updates" splash). Sizes/categories now come straight from
-      // baseConfig — the old per-user "overrides" are no longer applied (Settings
-      // was removed), so config changes always take effect.
+      // "checking for updates" splash).
       try {
         const m = await Promise.race([
           api.getPluginMeta(),
           new Promise<null>((r) => setTimeout(() => r(null), 6000)),
         ]);
         if (m) setMeta(m);
+      } catch {
+        /* ignore */
+      }
+      // Apply saved Settings (appearance / T&C / brands / about). Sizes &
+      // categories are intentionally NOT taken from the override — they're
+      // managed in code (per-client / asset-template rules), so they always come
+      // from baseConfig and can't be broken by a stale saved config.
+      try {
+        const ov = parseJSON<Partial<Config>>(await api.kvGet("overrides"), {});
+        if (ov && Object.keys(ov).length) {
+          const { sizes: _s, categories: _c, ...rest } = ov;
+          setCfg(mergeOverrides(baseConfig, rest));
+        }
       } catch {
         /* ignore */
       }
@@ -456,6 +468,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
   const tabs: { id: View; label: string; icon: React.ReactNode }[] = [
     { id: "place", label: "Place", icon: <TabPlace /> },
     { id: "brands", label: "Brands", icon: <TabBrands /> },
+    { id: "settings", label: "Settings", icon: <TabSettings /> },
     { id: "about", label: "About", icon: <TabAbout /> },
   ];
 
@@ -558,6 +571,16 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
             onImportColors={handleImportColors}
             onOpenFonts={handleOpenFonts}
             onPickColor={handlePickColor}
+          />
+        )}
+        {view === "settings" && (
+          <SettingsView
+            key={JSON.stringify(cfg.ui) + JSON.stringify(cfg.tcStyle)}
+            cfg={cfg}
+            api={api}
+            onLivePreview={setLivePreviewUi}
+            onSave={handleSaveSettings}
+            setStatus={setStatus}
           />
         )}
         {view === "about" && (

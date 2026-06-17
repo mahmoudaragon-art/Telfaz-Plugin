@@ -145,76 +145,8 @@ export const SettingsView: React.FC<Props> = ({ cfg, api, onLivePreview, onSave,
         </button>
       </Accordion>
 
-      {/* ── Sizes & categories ── */}
-      <Accordion
-        title="Sizes"
-        defaultCollapsed
-        footer={
-          <button className="btn-ghost wide" onClick={addSize}>
-            + Add size
-          </button>
-        }
-      >
-        {draft.sizes.map((s, i) => (
-          <div className="brand-edit-block" key={i}>
-            <div className="row2">
-              <div className="field">
-                <label className="field-label">Label</label>
-                <input
-                  className="text-input"
-                  value={s.label}
-                  onChange={(e) => setSizeField(i, "label", e.target.value)}
-                />
-              </div>
-              <div className="field">
-                <label className="field-label">Name (filename)</label>
-                <input
-                  className="text-input"
-                  value={s.value}
-                  onChange={(e) => setSizeField(i, "value", e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="row2">
-              <div className="field">
-                <label className="field-label">Width (px)</label>
-                <input
-                  type="number"
-                  className="text-input"
-                  value={s.w}
-                  onChange={(e) => setSizeField(i, "w", e.target.value)}
-                />
-              </div>
-              <div className="field">
-                <label className="field-label">Height (px)</label>
-                <input
-                  type="number"
-                  className="text-input"
-                  value={s.h}
-                  onChange={(e) => setSizeField(i, "h", e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="field">
-              <label className="field-label">Category</label>
-              <select
-                className="text-input"
-                value={s.category}
-                onChange={(e) => setSizeField(i, "category", e.target.value)}
-              >
-                {draft.categories.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button className="btn-ghost wide" onClick={() => removeSize(i)}>
-              Remove size
-            </button>
-          </div>
-        ))}
-      </Accordion>
+      {/* Sizes are managed in code now (per-client / asset-template rules), so
+          the size editor was removed to avoid conflicting with them. */}
 
       {/* ── T&C style ── */}
       <Accordion title="T&C style" defaultCollapsed>
