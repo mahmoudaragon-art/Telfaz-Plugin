@@ -160,9 +160,31 @@ export const baseConfig: Config = {
     {
       id: "telfaz",
       name: "Telfaz",
+      guidelinesUrl: "https://drive.google.com/file/d/1-t9Q2QgzEpmUwoGBMF-uzV8uU1BkCakH/view?usp=sharing",
+      fontsUrl: "https://drive.google.com/drive/folders/17cYrmXSwWpCiftWhzgQmqDPO6NSFXcQ_?usp=drive_link",
+      colors: ["#FF5C1A", "#0A0A0C", "#FFFFFF"],
+    },
+    {
+      // Locked brand — no guidelines/fonts links yet (buttons stay dimmed).
+      id: "tshweash",
+      name: "Tshweash",
       guidelinesUrl: "",
       fontsUrl: "",
-      colors: ["#FF5C1A", "#0A0A0C", "#FFFFFF"],
+      colors: ["#1A065B", "#2DC9A4", "#F1EEDA"],
+    },
+    {
+      id: "noug",
+      name: "NOUG",
+      guidelinesUrl: "https://drive.google.com/drive/folders/162oYZRBahbcO3tzTb-e8Li8MU2cqF9i4?usp=drive_link",
+      fontsUrl: "https://drive.google.com/drive/folders/1wayEHnq9MV4apM88Z6Wcq5GWL21ifrvm?usp=drive_link",
+      colors: ["#F6F1E8", "#DED4C8", "#C0823F"],
+    },
+    {
+      id: "gwm",
+      name: "GWM",
+      guidelinesUrl: "https://drive.google.com/drive/folders/13Hr37U9ydDyqAxwFGLZ5sMYFYVLmaFhX",
+      fontsUrl: "https://drive.google.com/drive/folders/1lq8mGpiWQu6XQIVen0WOgjLyyV3EbzHk?usp=drive_link",
+      colors: ["#252B2A", "#F39740", "#A24A97"],
     },
   ],
   about: {

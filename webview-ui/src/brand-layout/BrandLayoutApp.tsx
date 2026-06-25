@@ -61,6 +61,8 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
   const [adaptItems, setAdaptItems] = useState<
     { size: SizeOption; base: string; artboardName?: string }[] | null
   >(null);
+  // Faint previews of the selection (visual + text), shown inside the guide frames.
+  const [adaptThumb, setAdaptThumb] = useState<{ visual: string | null; text: string | null } | null>(null);
   // Simple confirmation popup (e.g. "Done" after an adaptation finishes).
   const [popup, setPopup] = useState<{ title: string; body?: string } | null>(null);
   // Prompt to pick the source folder right after sign-in.
@@ -236,8 +238,8 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
 
     setStatus(`Creating ${items.length} artboard${items.length === 1 ? "" : "s"} …`, "busy");
     try {
-      if (hostName.toLowerCase().startsWith("photoshop")) {
-        // One PSD, an artboard per size.
+      if (/^(photoshop|illustrator)/.test(hostName.toLowerCase())) {
+        // One document, an artboard per size.
         const res = await api.createArtboardsDoc(items, cfg);
         setStatus(
           res.missing.length
@@ -268,8 +270,8 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
   // selected sizes — one framed artboard per size beside the master — and place
   // the brand asset (resolved from the folder by Client/Lang/T&C) on top of each.
   const handleAdaptDesign = async (sizeValues: string[]) => {
-    if (!hostName.toLowerCase().startsWith("photoshop"))
-      return setStatus("Adapt is Photoshop-only", "err");
+    if (!/^(photoshop|illustrator)/.test(hostName.toLowerCase()))
+      return setStatus("Adapt needs Photoshop or Illustrator", "err");
     if (!sizeValues.length) return setStatus("Select at least one size", "err");
     if (!connected) return setStatus("Connect the source folder first", "err");
     if (!selection.client || !selection.lang || !selection.tc)
@@ -288,6 +290,17 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     }
     if (!items.length) return setStatus("No valid sizes selected", "err");
 
+    // Grab faint rasters of the current selection (Illustrator: visual + text) so
+    // the popup shows what's being moved; harmless no-op on hosts without it.
+    let thumb: { visual: string | null; text: string | null } | null = null;
+    if ((api as any).getSelectionThumbnail) {
+      try {
+        const r = await (api as any).getSelectionThumbnail();
+        thumb = typeof r === "string" ? { visual: r, text: null } : r;
+      } catch { /* ignore */ }
+    }
+    setAdaptThumb(thumb);
+
     // Open the guide popup; the actual adaptation runs from there with the
     // per-size focal/safe positions the user sets.
     setAdaptItems(items);
@@ -296,6 +309,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
   const runAdapt = async (targets: GuideTargets) => {
     const items = adaptItems;
     setAdaptItems(null);
+    setAdaptThumb(null);
     if (!items) return;
     setStatus(`Adapting to ${items.length} size${items.length === 1 ? "" : "s"} …`, "busy");
     try {
@@ -316,8 +330,8 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
 
   // One-click: 3000×3000 canvas + the three named guide rects for adaptation.
   const handleAddGuides = async () => {
-    if (!hostName.toLowerCase().startsWith("photoshop"))
-      return setStatus("Guides are Photoshop-only", "err");
+    if (!/^(photoshop|illustrator)/.test(hostName.toLowerCase()))
+      return setStatus("Guides are Photoshop/Illustrator only", "err");
     setStatus("Adding adapt guides …", "busy");
     try {
       await api.addAdaptGuides();
@@ -377,8 +391,8 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
         latinFont,
         layout,
       };
-      await api.writeTc(opts);
-      setStatus("T&C written", "ok");
+      const info: any = await api.writeTc(opts);
+      setStatus("T&C written" + (info ? " · " + info : ""), "ok");
     } catch (e: any) {
       setStatus("T&C failed: " + e.message, "err");
     }
@@ -606,8 +620,10 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
       {adaptItems && (
         <AdaptGuideModal
           sizes={adaptItems.map((i) => i.size)}
+          preview={adaptThumb?.visual || undefined}
+          textPreview={adaptThumb?.text || undefined}
           onRun={runAdapt}
-          onCancel={() => setAdaptItems(null)}
+          onCancel={() => { setAdaptItems(null); setAdaptThumb(null); }}
         />
       )}
 

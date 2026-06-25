@@ -611,7 +611,10 @@ const layerBounds = (l: any): Box => {
  *  where the visual focal and the text safe box should land. */
 export type AdaptTargets = Record<
   string,
-  { focal: { x: number; y: number }; safe: { x: number; y: number } }
+  {
+    focal: { x: number; y: number; zoom?: number };
+    safe: { x: number; y: number; scale?: number };
+  }
 >;
 
 export async function adaptDesignToSizes(
@@ -779,12 +782,16 @@ export async function adaptDesignToSizes(
             const dR = Math.max(1, v.right - Fx);
             const dT = Math.max(1, Fy - v.top);
             const dB = Math.max(1, v.bottom - Fy);
-            const s = Math.max(
+            // Min scale that covers AND lands the focal at its target …
+            const sCover = Math.max(
               (focalX * W) / dL,
               ((1 - focalX) * W) / dR,
               (focalY * H) / dT,
               ((1 - focalY) * H) / dB,
             );
+            // … times the popup's zoom handle (1 = none) for extra zoom-in.
+            const zoom = tgt?.focal?.zoom && tgt.focal.zoom > 0 ? tgt.focal.zoom : 1;
+            const s = sCover * zoom;
             await vso.scale(s * 100, s * 100, anchor);
             // Focal centre after scaling about the SO centre → move onto the target.
             const fx = Cx + (Fx - Cx) * s;
@@ -803,7 +810,9 @@ export async function adaptDesignToSizes(
             const Cx = (t.left + t.right) / 2;
             const Cy = (t.top + t.bottom) / 2;
             const lh = t.bottom - t.top;
-            const s = Math.min(W / masterW, H / masterH);
+            // Fit-scale × the popup's text resize handle (1 = none).
+            const tScale = tgt?.safe?.scale && tgt.safe.scale > 0 ? tgt.safe.scale : 1;
+            const s = Math.min(W / masterW, H / masterH) * tScale;
             await tso.scale(s * 100, s * 100, anchor);
             if (tgt?.safe) {
               // Centre the text block on the safe target the user set in the popup.
@@ -1628,4 +1637,52 @@ export async function pickLogoDataUrl(): Promise<{ dataUrl: string; name: string
         ? "image/jpeg"
         : "image/png";
   return { dataUrl: "data:" + mime + ";base64," + b64, name: file.name };
+}
+
+/* ---------------- adapt-guide previews ----------------
+   Faint rasters of the master's Visual and Text content layers, shown inside the
+   guide popup so the user sees what they're framing. Best-effort: any failure
+   returns nulls and the popup falls back to plain labelled boxes. */
+export async function getSelectionThumbnail(): Promise<{ visual: string | null; text: string | null }> {
+  if (HOST !== "Photoshop") return { visual: null, text: null };
+  const ps = photoshop;
+  const imaging: any = (ps as any).imaging;
+  if (!imaging) return { visual: null, text: null };
+  let visual: string | null = null;
+  let text: string | null = null;
+  try {
+    await ps.core.executeAsModal(
+      async () => {
+        const doc = ps.app.activeDocument;
+        const norm = (n: string) => n.toLowerCase().replace("@", "").trim();
+        const groups = (doc.layers as any[]).filter((l) => l && l.layers !== undefined);
+        const visualG = groups.find((l) => norm(l.name) === "visual");
+        const textG = groups.find((l) => norm(l.name) === "text");
+        // Content layer = the group child that isn't the guide rect (focal/safe).
+        const content = (g: any, guideRe: RegExp) =>
+          g ? (g.layers as any[]).find((c: any) => !guideRe.test(c.name)) : null;
+        const grab = async (layer: any): Promise<string | null> => {
+          if (!layer) return null;
+          try {
+            const px = await imaging.getPixels({
+              documentID: (doc as any).id,
+              layerID: layer.id,
+              applyAlpha: true,
+            });
+            const b64 = await imaging.encodeImageData({ imageData: px.imageData, base64: true });
+            try { px.imageData.dispose(); } catch { /* ignore */ }
+            return typeof b64 === "string" ? "data:image/jpeg;base64," + b64 : null;
+          } catch {
+            return null;
+          }
+        };
+        visual = await grab(content(visualG, /focal/i));
+        text = await grab(content(textG, /safe/i));
+      },
+      { commandName: "Capturing guide previews" },
+    );
+  } catch {
+    /* previews are optional */
+  }
+  return { visual, text };
 }
