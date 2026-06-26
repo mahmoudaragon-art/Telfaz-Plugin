@@ -775,44 +775,34 @@ export async function adaptDesignToSizes(
           const abLayer = doc.activeLayers[0];
           try { abLayer.name = nameBySize.get(size.value) || `${size.label} ${W}x${H}`; } catch { /* ignore */ }
 
-          // 2) VISUAL — duplicate the master, parent it INTO this artboard, then
-          //    cover-scale (×zoom) and land the focal on its popup target. Reading
-          //    the bounds AFTER parenting makes the maths self-correcting.
+          // 2) VISUAL — object-fit:cover to the artboard (×zoom), panned exactly like
+          //    the popup preview (object-position = 1 − focal). Position FIRST, parent
+          //    LAST so an extreme pan can never eject it into a neighbouring artboard.
+          void focalRel;
           const vso = await dupSO(visualSOId);
-          try { await vso.move(abLayer, EP.PLACEATEND); } catch { /* spatial capture fallback */ }
           {
             const v = layerBounds(vso);
-            const Cx = (v.left + v.right) / 2;
-            const Cy = (v.top + v.bottom) / 2;
-            const Fx = v.left + focalRel.x * (v.right - v.left);
-            const Fy = v.top + focalRel.y * (v.bottom - v.top);
-            const dL = Math.max(1, Fx - v.left);
-            const dR = Math.max(1, v.right - Fx);
-            const dT = Math.max(1, Fy - v.top);
-            const dB = Math.max(1, v.bottom - Fy);
-            const sCover = Math.max(
-              (focalX * W) / dL,
-              ((1 - focalX) * W) / dR,
-              (focalY * H) / dT,
-              ((1 - focalY) * H) / dB,
-            );
+            const vw = Math.max(1, v.right - v.left);
+            const vh = Math.max(1, v.bottom - v.top);
             const zoom = tgt?.focal?.zoom && tgt.focal.zoom > 0 ? tgt.focal.zoom : 1;
-            const s = sCover * zoom;
+            const s = Math.max(W / vw, H / vh) * zoom; // cover × zoom
             await vso.scale(s * 100, s * 100, anchor);
             const v2 = layerBounds(vso);
-            const C2x = (v2.left + v2.right) / 2;
-            const C2y = (v2.top + v2.bottom) / 2;
-            const F2x = v2.left + focalRel.x * (v2.right - v2.left);
-            const F2y = v2.top + focalRel.y * (v2.bottom - v2.top);
-            await vso.translate(ax + focalX * W - F2x, ay + focalY * H - F2y);
-            void C2x; void C2y;
+            const sw = v2.right - v2.left;
+            const sh = v2.bottom - v2.top;
+            const ox = 1 - focalX; // same pan model as the popup
+            const oy = 1 - focalY;
+            const left = ax - (sw - W) * ox;
+            const top = ay - (sh - H) * oy;
+            await vso.translate(left - v2.left, top - v2.top);
             await sleep();
           }
+          try { await vso.move(abLayer, EP.PLACEATEND); } catch { /* ignore */ }
 
-          // 3) TEXT — duplicate, parent ABOVE the visual, fit-scale (×handle), position.
+          // 3) TEXT — fit-scale (×handle), centre on the safe target. Position FIRST,
+          //    parent LAST (above the visual) so it can't be ejected either.
           if (textSOId && safe) {
             const tso = await dupSO(textSOId);
-            try { await tso.move(abLayer, EP.PLACEATBEGINNING); } catch { /* ignore */ }
             const tScale = tgt?.safe?.scale && tgt.safe.scale > 0 ? tgt.safe.scale : 1;
             const s = Math.min(W / masterW, H / masterH) * tScale;
             await tso.scale(s * 100, s * 100, anchor);
@@ -822,6 +812,7 @@ export async function adaptDesignToSizes(
             const sx = tgt?.safe?.x ?? 0.5;
             const sy = tgt?.safe?.y ?? safe.top / masterH;
             await tso.translate(ax + sx * W - C2x, ay + sy * H - C2y);
+            try { await tso.move(abLayer, EP.PLACEATBEGINNING); } catch { /* ignore */ }
             await sleep();
           }
 
@@ -864,14 +855,17 @@ export async function adaptDesignToSizes(
               );
               await sleep();
               const layoutLayer = doc.activeLayers[0];
-              try { await layoutLayer.move(abLayer, EP.PLACEATBEGINNING); } catch { /* ignore */ }
               try {
+                // The layout is authored at this artboard's ratio → scale it to FILL
+                // the artboard exactly (trimmed to its media box on place) and align it.
                 const lb = layerBounds(layoutLayer);
-                await layoutLayer.translate(
-                  ax + W / 2 - (lb.left + lb.right) / 2,
-                  ay + H / 2 - (lb.top + lb.bottom) / 2,
-                );
+                const lw = Math.max(1, lb.right - lb.left);
+                const lh = Math.max(1, lb.bottom - lb.top);
+                await layoutLayer.scale((W / lw) * 100, (H / lh) * 100, anchor);
+                const lb2 = layerBounds(layoutLayer);
+                await layoutLayer.translate(ax - lb2.left, ay - lb2.top);
               } catch { /* ignore */ }
+              try { await layoutLayer.move(abLayer, EP.PLACEATBEGINNING); } catch { /* ignore */ }
               await sleep();
             } catch {
               placedMissing.push(`${size.label} (place failed)`);
