@@ -734,120 +734,32 @@ export async function adaptDesignToSizes(
           /* ignore */
         }
       }
-      // Cover-crop makes the visual WIDER than its frame (a lot, on tall/narrow
-      // sizes). That extra width used to bleed onto the neighbouring artboard and
-      // get captured there — the visual went missing (white artboard). Space each
-      // artboard by its OWN horizontal cover-overflow + a margin so no visual can
-      // reach its neighbour.
-      const overflowX = (s: SizeOption) => {
-        const sc = Math.max(s.w / masterW, s.h / masterH);
-        return Math.max(0, (masterW * sc - s.w) / 2);
-      };
-      const MARGIN = 300;
+      const MARGIN = 200;
       // Per-size artboard name (Cute Box → asset name; else "Label WxH").
       const nameBySize = new Map(items.map((it) => [it.size.value, it.artboardName]));
+      const EP = (ps.constants as any).ElementPlacement;
+      // One horizontal row, all artboards TOP-aligned, clear to the right of the master.
       let x = Math.max(masterRight, masterW) + 600;
-      const maxH = Math.max(...sizes.map((s) => s.h));
-      const rowCy = maxH / 2;
+      const baseTop = 0;
 
       for (const size of sizes) {
         const W = size.w;
         const H = size.h;
-        const ov = overflowX(size);
-        const ax = x + ov; // clear this artboard's own left cover-overflow
-        const ay = rowCy - H / 2;
-        x = ax + W + ov + MARGIN; // advance past it + its right overflow + margin
+        const ax = x;
+        const ay = baseTop;
+        x += W + MARGIN;
         try {
-          // Where the focal/safe land in this frame (popup targets, else centred).
           const tgt = targets?.[size.value];
           const focalX = tgt?.focal?.x ?? 0.5;
           const focalY = tgt?.focal?.y ?? 0.5;
+          const focalRel = H > W ? focalVertRel : focalHorizRel; // taller→vertical focal
 
-          // Taller-than-wide → vertical focal; otherwise horizontal (square too).
-          const focalRel = H > W ? focalVertRel : focalHorizRel;
-          // --- Visual: scale-to-honor. Zoom just enough to land the focal at its
-          //     popup target (focalX,focalY of the frame) AND still cover the frame. ---
-          const vso = await dupSO(visualSOId);
-          {
-            const v = layerBounds(vso);
-            const Cx = (v.left + v.right) / 2;
-            const Cy = (v.top + v.bottom) / 2;
-            // Focal absolute position derived from THIS dup's bounds (dups shift).
-            const Fx = v.left + focalRel.x * (v.right - v.left);
-            const Fy = v.top + focalRel.y * (v.bottom - v.top);
-            // Focal-centre → each SO edge (master px). The min scale that both
-            // covers and keeps the focal at the target is the max of the four
-            // edge ratios (target gap ÷ available distance).
-            const dL = Math.max(1, Fx - v.left);
-            const dR = Math.max(1, v.right - Fx);
-            const dT = Math.max(1, Fy - v.top);
-            const dB = Math.max(1, v.bottom - Fy);
-            // Min scale that covers AND lands the focal at its target …
-            const sCover = Math.max(
-              (focalX * W) / dL,
-              ((1 - focalX) * W) / dR,
-              (focalY * H) / dT,
-              ((1 - focalY) * H) / dB,
-            );
-            // … times the popup's zoom handle (1 = none) for extra zoom-in.
-            const zoom = tgt?.focal?.zoom && tgt.focal.zoom > 0 ? tgt.focal.zoom : 1;
-            const s = sCover * zoom;
-            await vso.scale(s * 100, s * 100, anchor);
-            // Focal centre after scaling about the SO centre → move onto the target.
-            const fx = Cx + (Fx - Cx) * s;
-            const fy = Cy + (Fy - Cy) * s;
-            await vso.translate(ax + focalX * W - fx, ay + focalY * H - fy);
-            await sleep(); // let the scale/move settle before the next layer
-          }
-          const vsoId = vso.id;
-
-          // --- Text: scale-to-fit, centred horizontally, anchored near the top ---
-          let tsoId = 0;
-          if (textSOId && safe) {
-            const tso = await dupSO(textSOId);
-            tsoId = tso.id;
-            const t = layerBounds(tso);
-            const Cx = (t.left + t.right) / 2;
-            const Cy = (t.top + t.bottom) / 2;
-            const lh = t.bottom - t.top;
-            // Fit-scale × the popup's text resize handle (1 = none).
-            const tScale = tgt?.safe?.scale && tgt.safe.scale > 0 ? tgt.safe.scale : 1;
-            const s = Math.min(W / masterW, H / masterH) * tScale;
-            await tso.scale(s * 100, s * 100, anchor);
-            if (tgt?.safe) {
-              // Centre the text block on the safe target the user set in the popup.
-              const tx = ax + tgt.safe.x * W - Cx;
-              const ty = ay + tgt.safe.y * H - Cy;
-              await tso.translate(tx, ty);
-            } else {
-              // Default: centred horizontally, anchored at the safe rect's top ratio.
-              const topRatio = safe.top / masterH;
-              const tx = ax + W / 2 - Cx;
-              const ty = ay + topRatio * H - (Cy - (lh * s) / 2);
-              await tso.translate(tx, ty);
-            }
-            await sleep(); // let the text scale/move settle
-          }
-
-          // --- Frame: select both SOs, make an artboard that wraps + clips them ---
+          // 1) EMPTY artboard at the EXACT rect. Deselect first so nothing is wrapped
+          //    (the rect is then honoured AND the master can't get absorbed).
           await ps.action.batchPlay(
-            [{ _obj: "select", _target: [{ _ref: "layer", _id: vsoId }], makeVisible: false }],
+            [{ _obj: "selectNoLayers", _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }] }],
             {},
           );
-          if (tsoId) {
-            await ps.action.batchPlay(
-              [
-                {
-                  _obj: "select",
-                  _target: [{ _ref: "layer", _id: tsoId }],
-                  selectionModifier: { _enum: "selectionModifierType", _value: "addToSelection" },
-                  makeVisible: false,
-                },
-              ],
-              {},
-            );
-          }
-          await sleep(); // let the selection register before wrapping the artboard
           await ps.action.batchPlay(
             [
               {
@@ -859,25 +771,69 @@ export async function adaptDesignToSizes(
             ],
             {},
           );
-          await sleep(); // let the artboard form before reading/placing into it
-          let abId = 0;
-          try {
-            const ab = doc.activeLayers[0];
-            ab.name = nameBySize.get(size.value) || `${size.label} ${W}x${H}`;
-            abId = ab.id;
-          } catch {
-            /* ignore */
+          await sleep();
+          const abLayer = doc.activeLayers[0];
+          try { abLayer.name = nameBySize.get(size.value) || `${size.label} ${W}x${H}`; } catch { /* ignore */ }
+
+          // 2) VISUAL — duplicate the master, parent it INTO this artboard, then
+          //    cover-scale (×zoom) and land the focal on its popup target. Reading
+          //    the bounds AFTER parenting makes the maths self-correcting.
+          const vso = await dupSO(visualSOId);
+          try { await vso.move(abLayer, EP.PLACEATEND); } catch { /* spatial capture fallback */ }
+          {
+            const v = layerBounds(vso);
+            const Cx = (v.left + v.right) / 2;
+            const Cy = (v.top + v.bottom) / 2;
+            const Fx = v.left + focalRel.x * (v.right - v.left);
+            const Fy = v.top + focalRel.y * (v.bottom - v.top);
+            const dL = Math.max(1, Fx - v.left);
+            const dR = Math.max(1, v.right - Fx);
+            const dT = Math.max(1, Fy - v.top);
+            const dB = Math.max(1, v.bottom - Fy);
+            const sCover = Math.max(
+              (focalX * W) / dL,
+              ((1 - focalX) * W) / dR,
+              (focalY * H) / dT,
+              ((1 - focalY) * H) / dB,
+            );
+            const zoom = tgt?.focal?.zoom && tgt.focal.zoom > 0 ? tgt.focal.zoom : 1;
+            const s = sCover * zoom;
+            await vso.scale(s * 100, s * 100, anchor);
+            const v2 = layerBounds(vso);
+            const C2x = (v2.left + v2.right) / 2;
+            const C2y = (v2.top + v2.bottom) / 2;
+            const F2x = v2.left + focalRel.x * (v2.right - v2.left);
+            const F2y = v2.top + focalRel.y * (v2.bottom - v2.top);
+            await vso.translate(ax + focalX * W - F2x, ay + focalY * H - F2y);
+            void C2x; void C2y;
+            await sleep();
           }
 
-          // --- Place the brand asset on TOP, centred in this artboard ---
+          // 3) TEXT — duplicate, parent ABOVE the visual, fit-scale (×handle), position.
+          if (textSOId && safe) {
+            const tso = await dupSO(textSOId);
+            try { await tso.move(abLayer, EP.PLACEATBEGINNING); } catch { /* ignore */ }
+            const tScale = tgt?.safe?.scale && tgt.safe.scale > 0 ? tgt.safe.scale : 1;
+            const s = Math.min(W / masterW, H / masterH) * tScale;
+            await tso.scale(s * 100, s * 100, anchor);
+            const t2 = layerBounds(tso);
+            const C2x = (t2.left + t2.right) / 2;
+            const C2y = (t2.top + t2.bottom) / 2;
+            const sx = tgt?.safe?.x ?? 0.5;
+            const sy = tgt?.safe?.y ?? safe.top / masterH;
+            await tso.translate(ax + sx * W - C2x, ay + sy * H - C2y);
+            await sleep();
+          }
+
+          // 4) LAYOUT — place the brand asset on TOP, centred in this artboard.
           const entry = assetBySize.get(size.value);
-          if (entry && abId) {
+          if (entry) {
             try {
               await ps.action.batchPlay(
-                [{ _obj: "select", _target: [{ _ref: "layer", _id: abId }], makeVisible: false }],
+                [{ _obj: "select", _target: [{ _ref: "layer", _id: abLayer.id }], makeVisible: false }],
                 {},
               );
-              await sleep(); // ensure the target artboard is active before placing
+              await sleep();
               const token = await fs.createSessionToken(entry);
               await ps.action.batchPlay(
                 [
@@ -906,13 +862,24 @@ export async function adaptDesignToSizes(
                 ],
                 { synchronousExecution: true } as any,
               );
-              await sleep(); // let the placed asset settle inside the artboard
+              await sleep();
+              const layoutLayer = doc.activeLayers[0];
+              try { await layoutLayer.move(abLayer, EP.PLACEATBEGINNING); } catch { /* ignore */ }
+              try {
+                const lb = layerBounds(layoutLayer);
+                await layoutLayer.translate(
+                  ax + W / 2 - (lb.left + lb.right) / 2,
+                  ay + H / 2 - (lb.top + lb.bottom) / 2,
+                );
+              } catch { /* ignore */ }
+              await sleep();
             } catch {
               placedMissing.push(`${size.label} (place failed)`);
             }
           }
+
           created++;
-          await sleep(); // fully settle this artboard before starting the next
+          await sleep(); // fully settle this artboard before the next
         } catch (e: any) {
           const msg =
             (e && e.message) || (typeof e === "string" ? e : JSON.stringify(e)) || "unknown";
