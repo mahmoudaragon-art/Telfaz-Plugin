@@ -574,10 +574,21 @@ export async function addAdaptGuides(): Promise<void> {
       const safe = await guide("safe", [0, 200, 255], 300, 600, 1000, 2400);
 
       // Group focals into "Visual" and the safe rect into "Text" (the adapt
-      // convention). Best-effort: if grouping isn't supported, the rects stay
-      // loose and the user can group them with Cmd+G.
+      // convention). Both must be TOP-LEVEL groups — deselect before each create so
+      // the new group isn't nested inside the previous one (Text-inside-Visual bug).
       const PLACEINSIDE = (ps.constants as any)?.ElementPlacement?.PLACEINSIDE;
+      const deselectAll = async () => {
+        try {
+          await ps.action.batchPlay(
+            [{ _obj: "selectNoLayers", _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }] }],
+            {},
+          );
+        } catch {
+          /* ignore */
+        }
+      };
       try {
+        await deselectAll();
         const visualG = await (doc as any).createLayerGroup({ name: "Visual" });
         for (const l of [focalH, focalV]) {
           try {
@@ -590,6 +601,7 @@ export async function addAdaptGuides(): Promise<void> {
         /* ignore */
       }
       try {
+        await deselectAll(); // ← so "Text" lands at the top level, not inside "Visual"
         const textG = await (doc as any).createLayerGroup({ name: "Text" });
         if (safe) await safe.move(textG, PLACEINSIDE);
       } catch {
