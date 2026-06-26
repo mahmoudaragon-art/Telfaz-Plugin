@@ -804,7 +804,12 @@ export async function adaptDesignToSizes(
           if (textSOId && safe) {
             const tso = await dupSO(textSOId);
             const tScale = tgt?.safe?.scale && tgt.safe.scale > 0 ? tgt.safe.scale : 1;
-            const s = Math.min(W / masterW, H / masterH) * tScale;
+            const t0 = layerBounds(tso);
+            const tw0 = Math.max(1, t0.right - t0.left);
+            const th0 = Math.max(1, t0.bottom - t0.top);
+            // Fit like the popup (85% width / 50% height) × the resize handle, so the
+            // size in the popup matches the result (was relative to the master = tiny).
+            const s = Math.min((W * 0.85) / tw0, (H * 0.5) / th0) * tScale;
             await tso.scale(s * 100, s * 100, anchor);
             const t2 = layerBounds(tso);
             const C2x = (t2.left + t2.right) / 2;
@@ -855,16 +860,10 @@ export async function adaptDesignToSizes(
               );
               await sleep();
               const layoutLayer = doc.activeLayers[0];
-              try {
-                // The layout is authored at this artboard's ratio → scale it to FILL
-                // the artboard exactly (trimmed to its media box on place) and align it.
-                const lb = layerBounds(layoutLayer);
-                const lw = Math.max(1, lb.right - lb.left);
-                const lh = Math.max(1, lb.bottom - lb.top);
-                await layoutLayer.scale((W / lw) * 100, (H / lh) * 100, anchor);
-                const lb2 = layerBounds(layoutLayer);
-                await layoutLayer.translate(ax - lb2.left, ay - lb2.top);
-              } catch { /* ignore */ }
+              // Placed (media-box-cropped) into the ACTIVE artboard → it already lands
+              // at the artboard's size/position, exactly like the working "Create
+              // Artboards" flow. No bounds-based scaling: overlay layouts have a
+              // transparent middle, so scaling by visible bounds would distort them.
               try { await layoutLayer.move(abLayer, EP.PLACEATBEGINNING); } catch { /* ignore */ }
               await sleep();
             } catch {
