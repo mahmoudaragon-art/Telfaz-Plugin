@@ -15,6 +15,8 @@ interface Props {
   preview?: string;
   /** Raster of the selection's TEXT part (shown under the text guide). */
   textPreview?: string;
+  /** Diagnostic shown when the previews couldn't be captured. */
+  previewError?: string;
   onRun: (targets: GuideTargets) => void;
   onCancel: () => void;
 }
@@ -31,6 +33,7 @@ const MIN_BOX = 0.16, MAX_BOX = 4;
 const DISP_CAP = 0.9;          // focal box never fills the frame → handle stays grabbable
 const FOCAL_OVER = 0.5;        // how far the focal centre may leave the frame (each side)
 const T_MIN = 0.3, T_MAX = 4;  // text scale range
+const DEFAULT_ZOOM = 1.5;      // focal starts zoomed in a touch
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const clampCenter = (v: number, half: number) => clamp(v, half, 1 - half);
@@ -47,15 +50,20 @@ const textBox = (fw: number, fh: number, nat: { w: number; h: number } | null) =
 
 type Kind = "focal" | "safe" | "resize" | "tresize";
 
-export const AdaptGuideModal: React.FC<Props> = ({ sizes, preview, textPreview, onRun, onCancel }) => {
+export const AdaptGuideModal: React.FC<Props> = ({ sizes, preview, textPreview, previewError, onRun, onCancel }) => {
   const [pos, setPos] = useState<GuideTargets>(() => {
     const init: GuideTargets = {};
-    for (const s of sizes) init[s.value] = { focal: { x: 0.5, y: 0.5 }, safe: { x: 0.5, y: 0.78 } };
+    // Text starts near the TOP; focal centred.
+    for (const s of sizes) init[s.value] = { focal: { x: 0.5, y: 0.5 }, safe: { x: 0.5, y: 0.2 } };
     return init;
   });
   const [boxes, setBoxes] = useState<Record<string, { w: number; h: number }>>(() => {
     const init: Record<string, { w: number; h: number }> = {};
-    for (const s of sizes) init[s.value] = focalBox(s);
+    // Start at DEFAULT_ZOOM (focal box = default × zoom → zoomOf returns DEFAULT_ZOOM).
+    for (const s of sizes) {
+      const d = focalBox(s);
+      init[s.value] = { w: d.w * DEFAULT_ZOOM, h: d.h * DEFAULT_ZOOM };
+    }
     return init;
   });
   const [tScales, setTScales] = useState<Record<string, number>>(() => {
@@ -147,6 +155,9 @@ export const AdaptGuideModal: React.FC<Props> = ({ sizes, preview, textPreview, 
             <b className="dot-safe">text</b> (corner = resize). The visual can be pushed past the
             edges. Then Run.
           </div>
+          {previewError && (
+            <div style={{ marginTop: 6, fontSize: 11, color: "#ff8a3d" }}>preview: {previewError}</div>
+          )}
         </div>
 
         {textPreview && (

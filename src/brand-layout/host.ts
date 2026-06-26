@@ -1643,46 +1643,68 @@ export async function pickLogoDataUrl(): Promise<{ dataUrl: string; name: string
    Faint rasters of the master's Visual and Text content layers, shown inside the
    guide popup so the user sees what they're framing. Best-effort: any failure
    returns nulls and the popup falls back to plain labelled boxes. */
-export async function getSelectionThumbnail(): Promise<{ visual: string | null; text: string | null }> {
+export async function getSelectionThumbnail(): Promise<{
+  visual: string | null;
+  text: string | null;
+  err?: string;
+}> {
   if (HOST !== "Photoshop") return { visual: null, text: null };
   const ps = photoshop;
-  const imaging: any = (ps as any).imaging;
-  if (!imaging) return { visual: null, text: null };
   let visual: string | null = null;
   let text: string | null = null;
+  let err = "";
   try {
     await ps.core.executeAsModal(
       async () => {
-        const doc = ps.app.activeDocument;
+        const master = ps.app.activeDocument;
+        const masterW = Math.max(1, Math.round(Number((master as any).width)));
+        const masterH = Math.max(1, Math.round(Number((master as any).height)));
         const norm = (n: string) => n.toLowerCase().replace("@", "").trim();
-        const groups = (doc.layers as any[]).filter((l) => l && l.layers !== undefined);
+        const groups = (master.layers as any[]).filter((l) => l && l.layers !== undefined);
         const visualG = groups.find((l) => norm(l.name) === "visual");
         const textG = groups.find((l) => norm(l.name) === "text");
+        if (!visualG) { err = 'no "Visual" group'; return; }
         // Content layer = the group child that isn't the guide rect (focal/safe).
         const content = (g: any, guideRe: RegExp) =>
           g ? (g.layers as any[]).find((c: any) => !guideRe.test(c.name)) : null;
+        const tempFolder = await fs.getTemporaryFolder();
+
+        // Isolate one content layer in a fresh transparent doc, save a PNG, read it.
         const grab = async (layer: any): Promise<string | null> => {
           if (!layer) return null;
+          let tempDoc: any = null;
           try {
-            const px = await imaging.getPixels({
-              documentID: (doc as any).id,
-              layerID: layer.id,
-              applyAlpha: true,
-            });
-            const b64 = await imaging.encodeImageData({ imageData: px.imageData, base64: true });
-            try { px.imageData.dispose(); } catch { /* ignore */ }
-            return typeof b64 === "string" ? "data:image/jpeg;base64," + b64 : null;
-          } catch {
+            tempDoc = await ps.app.createDocument({
+              width: masterW,
+              height: masterH,
+              resolution: 72,
+              fill: "transparent",
+            } as any);
+            if (!tempDoc) throw new Error("createDocument returned null");
+            await layer.duplicate(tempDoc);
+            try { await tempDoc.trim("transparent" as any); } catch { /* keep full canvas */ }
+            const file = await tempFolder.createFile(
+              "tlfz_thumb_" + Date.now() + "_" + Math.floor(Math.random() * 99999) + ".png",
+              { overwrite: true },
+            );
+            await tempDoc.saveAs.png(file);
+            const buf = (await file.read({ format: uxp.storage.formats.binary })) as ArrayBuffer;
+            return "data:image/png;base64," + arrayBufferToBase64(buf);
+          } catch (e: any) {
+            if (!err) err = (e && e.message ? e.message : String(e)).slice(0, 120);
             return null;
+          } finally {
+            try { if (tempDoc) await tempDoc.closeWithoutSaving(); } catch { /* ignore */ }
           }
         };
+
         visual = await grab(content(visualG, /focal/i));
         text = await grab(content(textG, /safe/i));
       },
       { commandName: "Capturing guide previews" },
     );
-  } catch {
-    /* previews are optional */
+  } catch (e: any) {
+    err = "modal: " + (e && e.message ? e.message : String(e)).slice(0, 100);
   }
-  return { visual, text };
+  return { visual, text, err: err || undefined };
 }

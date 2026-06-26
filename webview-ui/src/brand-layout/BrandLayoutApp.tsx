@@ -62,7 +62,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
     { size: SizeOption; base: string; artboardName?: string }[] | null
   >(null);
   // Faint previews of the selection (visual + text), shown inside the guide frames.
-  const [adaptThumb, setAdaptThumb] = useState<{ visual: string | null; text: string | null } | null>(null);
+  const [adaptThumb, setAdaptThumb] = useState<{ visual: string | null; text: string | null; err?: string } | null>(null);
   // Simple confirmation popup (e.g. "Done" after an adaptation finishes).
   const [popup, setPopup] = useState<{ title: string; body?: string } | null>(null);
   // Prompt to pick the source folder right after sign-in.
@@ -622,6 +622,7 @@ export const BrandLayoutApp: React.FC<{ api: API }> = ({ api }) => {
           sizes={adaptItems.map((i) => i.size)}
           preview={adaptThumb?.visual || undefined}
           textPreview={adaptThumb?.text || undefined}
+          previewError={adaptThumb?.err || undefined}
           onRun={runAdapt}
           onCancel={() => { setAdaptItems(null); setAdaptThumb(null); }}
         />
